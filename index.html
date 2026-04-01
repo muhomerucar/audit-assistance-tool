@@ -163,7 +163,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 
 .table-note { font-size: 11px; color: var(--text3); margin: -4px 0 12px; display: flex; gap: 10px; flex-wrap: wrap; }
 .table-note b { color: var(--text2); font-weight: 500; }
-.tbl-wrap { border: 1px solid var(--border); border-radius: var(--rl); overflow: auto; overscroll-behavior: contain; }
+.tbl-wrap { border: 1px solid var(--border); border-radius: var(--rl); overflow-x: auto; overflow-y: visible; overscroll-behavior-x: contain; }
 table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 13px; }
 thead tr { background: var(--bg2); }
 th { padding: 10px 14px; text-align: left; font-family: var(--mono); font-size: 10px; font-weight: 400; color: var(--text3); letter-spacing: 0.08em; text-transform: uppercase; border-bottom: 1px solid var(--border); white-space: nowrap; }
@@ -605,6 +605,20 @@ function scrollContentToTop(behavior = 'auto') {
   content.scrollTo({ top: 0, behavior });
 }
 
+function attachResultsInteractions() {
+  const wrap = document.querySelector('#results-body .tbl-wrap');
+  const content = getContentEl();
+  if (!wrap || !content || wrap.dataset.wheelBound === '1') return;
+  wrap.dataset.wheelBound = '1';
+  wrap.addEventListener('wheel', (event) => {
+    const mostlyVertical = Math.abs(event.deltaY) >= Math.abs(event.deltaX);
+    const canScrollPage = content.scrollHeight > content.clientHeight;
+    if (!mostlyVertical || event.shiftKey || !canScrollPage) return;
+    content.scrollTop += event.deltaY;
+    event.preventDefault();
+  }, { passive: false });
+}
+
 // ── NAV ───────────────────────────────────────────────
 function nav(btn) {
   activateView(btn.dataset.view, { scrollTop: true, behavior: 'smooth' });
@@ -991,6 +1005,7 @@ function renderResultsView() {
         <tbody id="tbl-body"></tbody>
       </table>
     </div>`;
+  attachResultsInteractions();
   applyFilters();
 }
 
