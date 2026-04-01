@@ -271,7 +271,7 @@ tbody tr:hover { background: var(--bg3); cursor: pointer; }
 <div class="app">
   <aside class="sidebar">
     <div class="sb-brand">
-      <div class="sb-brand-label">Standalone App</div>
+      <div class="sb-brand-label" lang="en">Standalone App</div>
       <div class="sb-brand-name">CSV Audit Workbench</div>
     </div>
     <nav class="sb-nav">
@@ -305,7 +305,7 @@ tbody tr:hover { background: var(--bg3); cursor: pointer; }
   <main class="main">
     <div class="topbar">
       <div class="topbar-copy">
-        <div class="topbar-kicker" id="page-kicker">CSV-first audit</div>
+        <div class="topbar-kicker" id="page-kicker" lang="en">CSV-first audit</div>
         <div class="topbar-title"><b id="page-title">Analiz</b></div>
         <div class="topbar-subtitle" id="page-subtitle">CSV yükleyip issue'ları yerelde değerlendir, sorunları nedenleriyle gör.</div>
       </div>
@@ -320,7 +320,7 @@ tbody tr:hover { background: var(--bg3); cursor: pointer; }
       <div class="view active" id="view-analyze">
         <div class="hero-grid">
           <div class="card hero-card">
-            <div class="hero-kicker">Upload once, inspect fast</div>
+            <div class="hero-kicker" lang="en">Upload once, inspect fast</div>
             <div class="hero-title">Jira export'unu birkaç saniyede denetle</div>
             <div class="hero-sub">Dosyayı sürükle, araç issue'ları yerelde analiz etsin, eksikleri ve audit dışı durumları açıklamalarıyla sıralasın.</div>
             <div class="drop-zone" id="drop-zone"
@@ -478,7 +478,7 @@ erişilebilirlik:erişilebilirlik maddesi</textarea>
         <div class="rule-row"><div class="rule-num">1</div><div class="rule-body"><div class="rule-title">Issue type kontrolü</div><div class="rule-desc">Issue type, geçerli type listesinde olmalıdır.</div></div><span class="rule-badge rb-block">BLOCKING</span></div>
         <div class="rule-row"><div class="rule-num">2</div><div class="rule-body"><div class="rule-title">Component kontrolü</div><div class="rule-desc">En az bir geçerli component atanmış olmalıdır.</div></div><span class="rule-badge rb-block">BLOCKING</span></div>
         <div class="rule-row"><div class="rule-num">3</div><div class="rule-body"><div class="rule-title">Açıklama başlıkları</div><div class="rule-desc">Description'da tüm zorunlu başlıklar bulunmalıdır.</div></div><span class="rule-badge rb-block">BLOCKING</span></div>
-        <div class="rule-row"><div class="rule-num">4</div><div class="rule-body"><div class="rule-title">Confluence linki</div><div class="rule-desc">Description'da Confluence domain'ini içeren en az bir link olmalıdır.</div></div><span class="rule-badge rb-block">BLOCKING</span></div>
+        <div class="rule-row"><div class="rule-num">4</div><div class="rule-body"><div class="rule-title">Confluence linki</div><div class="rule-desc">CSV'nin herhangi bir alanında Confluence domain'i geçmelidir (description, özel alanlar veya Confluence Pages dahil).</div></div><span class="rule-badge rb-block">BLOCKING</span></div>
         <div class="rule-row"><div class="rule-num">5</div><div class="rule-body"><div class="rule-title">Audit exclusion</div><div class="rule-desc">Hariç tutulan label içeren issue'lar diğer kurallardan muaf tutulur.</div></div><span class="rule-badge rb-skip">SKIP</span></div>
         <div class="rule-row"><div class="rule-num">6</div><div class="rule-body"><div class="rule-title">Olgunluk — changelog</div><div class="rule-desc">CSV'de changelog bulunmadığından uygulanamaz. Tüm issue'lar N/A olarak işaretlenir.</div></div><span class="rule-badge rb-na">N/A</span></div>
       </div>
@@ -588,11 +588,28 @@ function applyConfigToForm(config) {
     .map(([k, v]) => `${k}:${v}`).join('\n');
 }
 
-function flashConfigMessage(message) {
+function flashConfigMessage(message, color) {
   const el = document.getElementById('cfg-saved');
   el.textContent = message;
+  el.style.color = color || 'var(--pass)';
   el.style.display = 'inline';
   setTimeout(() => { el.style.display = 'none'; }, 2200);
+}
+
+function persistConfig() {
+  try {
+    localStorage.setItem('jiraAuditConfig', JSON.stringify({
+      jiraBaseUrl: CFG.jiraBaseUrl,
+      validTypes: CFG.validTypes,
+      validComponents: CFG.validComponents,
+      excludedLabels: CFG.excludedLabels,
+      confluenceDomain: CFG.confluenceDomain,
+      requiredHeaders: CFG.requiredHeaders,
+      labelReasons: CFG.labelReasons,
+    }));
+  } catch {
+    flashConfigMessage('⚠ Kayıt başarısız — tarayıcı depolama kotası dolmuş olabilir', 'var(--warn)');
+  }
 }
 
 function getContentEl() {
@@ -734,7 +751,7 @@ function readFile(file) {
   reader.onload = e => {
     const bytes = new Uint8Array(e.target.result);
     let text = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
-    if (text.includes('\uFFFD')) text = new TextDecoder('windows-1252').decode(bytes);
+    if (text.includes('\uFFFD')) text = new TextDecoder('windows-1254').decode(bytes);
     processCSV(text, file.name);
   };
   reader.onerror = () => setAnalyzeBody(`<div class="banner banner-err"><b>Dosya okunamadı</b>Dosyayı tekrar seç.</div>`);
@@ -884,7 +901,10 @@ function analyzeIssue(row, colMap) {
     { reasons.push(`Geçersiz issue type: "${issueType}"`); compliance = 'FAIL'; }
   if (!normalizedComponents.some(component => normalizedValidComponents.has(component)))
     { reasons.push(`Geçerli component yok: [${components.join(', ') || 'boş'}]`); compliance = 'FAIL'; }
-  const missing = CFG.requiredHeaders.filter(h => !normalizedDescription.includes(normalizeCompareText(h)));
+  const missing = CFG.requiredHeaders.filter(h => {
+    const nh = normalizeCompareText(h).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return !new RegExp('(?:^|[^a-z0-9])' + nh + '(?:$|[^a-z0-9])').test(normalizedDescription);
+  });
   if (missing.length) {
     const reason = !descSource.trim() || missing.length === CFG.requiredHeaders.length
       ? 'Analiz yok'
@@ -907,37 +927,27 @@ function saveConfig() {
   CFG.excludedLabels   = document.getElementById('c-labels').value.split(',').map(s=>s.trim()).filter(Boolean);
   CFG.confluenceDomain = document.getElementById('c-confluence').value.trim();
   CFG.requiredHeaders  = document.getElementById('c-headers').value.split('\n').map(s=>s.trim()).filter(Boolean);
-  CFG.labelReasons     = Object.fromEntries(
-    document.getElementById('c-label-reasons').value.split('\n')
-      .map(l => l.trim()).filter(Boolean)
-      .map(l => { const idx = l.indexOf(':'); return idx > 0 ? [l.slice(0, idx).trim().toLowerCase(), l.slice(idx + 1).trim()] : null; })
+  const labelLines  = document.getElementById('c-label-reasons').value.split('\n').map(l => l.trim()).filter(Boolean);
+  const skippedLines = labelLines.filter(l => l.indexOf(':') <= 0);
+  CFG.labelReasons  = Object.fromEntries(
+    labelLines
+      .map(l => { const idx = l.indexOf(':'); return idx > 0 ? [normalizeCompareText(l.slice(0, idx)), l.slice(idx + 1).trim()] : null; })
       .filter(Boolean)
   );
-  localStorage.setItem('jiraAuditConfig', JSON.stringify({
-    jiraBaseUrl: CFG.jiraBaseUrl,
-    validTypes: CFG.validTypes,
-    validComponents: CFG.validComponents,
-    excludedLabels: CFG.excludedLabels,
-    confluenceDomain: CFG.confluenceDomain,
-    requiredHeaders: CFG.requiredHeaders,
-    labelReasons: CFG.labelReasons,
-  }));
+  persistConfig();
   if (analysisReady) configChangedAfterAnalysis = true;
-  flashConfigMessage('✓ Kaydedildi');
+  const warnings = [];
+  if (!CFG.validTypes.length) warnings.push('Issue type listesi boş');
+  if (!CFG.validComponents.length) warnings.push('Component listesi boş');
+  if (skippedLines.length) warnings.push(`${skippedLines.length} label satırı atlandı (format: label:sebep)`);
+  flashConfigMessage(warnings.length ? '⚠ ' + warnings.join(' · ') : '✓ Kaydedildi', warnings.length ? 'var(--warn)' : undefined);
 }
 
 function resetConfig() {
+  if (!confirm('Tüm ayarlar varsayılanlara dönecek. Emin misin?')) return;
   CFG = cloneConfig(DEFAULT_CFG);
   applyConfigToForm(CFG);
-  localStorage.setItem('jiraAuditConfig', JSON.stringify({
-    jiraBaseUrl: CFG.jiraBaseUrl,
-    validTypes: CFG.validTypes,
-    validComponents: CFG.validComponents,
-    excludedLabels: CFG.excludedLabels,
-    confluenceDomain: CFG.confluenceDomain,
-    requiredHeaders: CFG.requiredHeaders,
-    labelReasons: CFG.labelReasons,
-  }));
+  persistConfig();
   if (analysisReady) configChangedAfterAnalysis = true;
   flashConfigMessage('✓ Varsayılanlar yüklendi');
 }
@@ -967,7 +977,7 @@ function renderResultsView() {
   document.getElementById('results-body').innerHTML = `${freshAnalysisNotice}${staleWarn}
     <div class="results-hero">
       <div class="results-hero-copy">
-        <div class="section-label">Analysis Snapshot</div>
+        <div class="section-label" lang="en">Analysis Snapshot</div>
         <div class="results-hero-title">Issue'ları filtrele, ayıkla ve detay düzeyinde incele</div>
         <div class="results-hero-sub">${leadText} PASS oranı yalnızca denetime tabi issue'lar üzerinden hesaplanır.</div>
       </div>
@@ -997,9 +1007,9 @@ function renderResultsView() {
     <div class="tbl-wrap">
       <table>
         <thead><tr>
-          <th style="width:100px;cursor:pointer;user-select:none" onclick="sortBy('issueKey')" id="th-issueKey">Issue</th><th>Başlık</th>
-          <th style="width:68px;cursor:pointer;user-select:none" onclick="sortBy('issueType')" id="th-issueType">Type</th><th style="width:100px">Component</th>
-          <th style="width:80px;cursor:pointer;user-select:none" onclick="sortBy('compliance')" id="th-compliance">Compliance</th>
+          <th style="width:100px;cursor:pointer;user-select:none" onclick="sortBy('issueKey')" id="th-issueKey" lang="en">Issue</th><th>Başlık</th>
+          <th style="width:68px;cursor:pointer;user-select:none" onclick="sortBy('issueType')" id="th-issueType" lang="en">Type</th><th style="width:100px" lang="en">Component</th>
+          <th style="width:80px;cursor:pointer;user-select:none" onclick="sortBy('compliance')" id="th-compliance" lang="en">Compliance</th>
           <th>Bulgular</th>
         </tr></thead>
         <tbody id="tbl-body"></tbody>
@@ -1016,14 +1026,14 @@ function sortBy(col) {
 }
 
 function applyFilters() {
-  const q         = (document.getElementById('f-q')?.value || '').toLowerCase();
+  const q         = normalizeCompareText(document.getElementById('f-q')?.value || '');
   const comp      = document.getElementById('f-comp')?.value || '';
   const component = document.getElementById('f-component')?.value || '';
   const showEx    = document.getElementById('f-excl')?.checked || false;
 
   let list = allResults.filter(r => {
     if (r.auditExcluded && !showEx) return false;
-    if (q && !r.issueKey.toLowerCase().includes(q) && !r.summary.toLowerCase().includes(q)) return false;
+    if (q && !normalizeCompareText(r.issueKey).includes(q) && !normalizeCompareText(r.summary).includes(q)) return false;
     if (comp && r.compliance !== comp) return false;
     if (component && !r.components.includes(component)) return false;
     return true;
@@ -1090,7 +1100,8 @@ function openDrawer(key) {
   document.getElementById('d-findings').innerHTML = r.reasons.length
     ? r.reasons.map(x => `<div class="reason-item"><span>●</span>${esc(x)}</div>`).join('')
     : '<div style="font-size:12px;color:var(--text3)">Bulgu yok — tüm kurallar geçti.</div>';
-  document.getElementById('d-desc').textContent = r.descText || '(açıklama yok)';
+  const truncNote = r.descText.length >= 4000 ? '\n\n— metin kısaltıldı —' : '';
+  document.getElementById('d-desc').textContent = (r.descText || '(açıklama yok)') + truncNote;
   const dLink = document.getElementById('d-link');
   if (r.jiraUrl) { dLink.href = safeHref(r.jiraUrl); dLink.style.display = 'inline-flex'; }
   else { dLink.style.display = 'none'; }

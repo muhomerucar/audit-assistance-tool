@@ -11,7 +11,7 @@ Kontrol edilen başlıklar özetle:
 - issue type uygun mu
 - geçerli component var mı
 - description içinde zorunlu başlıklar mevcut mu
-- description içinde Confluence linki var mı
+- CSV'nin herhangi bir alanında Confluence domain'i var mı (description, özel alanlar veya Confluence Pages dahil)
 - hariç tutulan label varsa issue audit dışı mı sayılmalı
 
 ## ⚙️ Nasıl Çalışır
@@ -64,6 +64,7 @@ Kolon tespiti yaygın başlık varyasyonları, küçük-büyük harf farkları v
 - Confluence domain
 - description içinde zorunlu olan başlıklar
 - opsiyonel Jira Base URL
+- label → sebep eşleşmeleri (audit dışı issue'larda gösterilecek açıklamalar, her satır `label:sebep` formatında)
 
 ## 🔒 Güvenlik ve Gizlilik
 
