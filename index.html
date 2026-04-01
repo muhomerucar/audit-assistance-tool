@@ -24,9 +24,9 @@
 html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; line-height: 1.5; }
 
 .app { display: grid; grid-template-columns: 240px 1fr; height: 100vh; overflow: hidden; }
-.sidebar { background: var(--bg2); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
-.main { display: flex; flex-direction: column; overflow: hidden; }
-.content { flex: 1; overflow-y: auto; padding: 28px 32px; }
+.sidebar { min-width: 0; min-height: 0; background: var(--bg2); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+.main { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.content { min-width: 0; min-height: 0; flex: 1; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 28px 32px; }
 
 .sb-brand { padding: 20px 20px 16px; border-bottom: 1px solid var(--border); }
 .sb-brand-label { font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 4px; }
@@ -54,7 +54,8 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .topbar-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 
 .view { display: none; }
-.view.active { display: block; }
+.view.active { display: block; animation: fadeIn 0.18s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 
 .btn { padding: 7px 14px; border-radius: var(--r); font-size: 12px; font-family: var(--sans); cursor: pointer; border: 1px solid var(--border2); background: var(--bg3); color: var(--text); font-weight: 400; transition: all 0.12s; }
 .btn:hover { background: var(--bg4); }
@@ -521,6 +522,7 @@ let sortState = { col: null, dir: 1 };
 let analysisReady = false;
 let configChangedAfterAnalysis = false;
 let lastAnalysisFilename = '';
+let latestAnalysisMeta = null;
 
 // ── SECURITY HELPERS ──────────────────────────────────
 function esc(s) {
@@ -593,15 +595,33 @@ function flashConfigMessage(message) {
   setTimeout(() => { el.style.display = 'none'; }, 2200);
 }
 
+function getContentEl() {
+  return document.querySelector('.content');
+}
+
+function scrollContentToTop(behavior = 'auto') {
+  const content = getContentEl();
+  if (!content) return;
+  content.scrollTo({ top: 0, behavior });
+}
+
 // ── NAV ───────────────────────────────────────────────
 function nav(btn) {
-  const view = btn.dataset.view;
+  activateView(btn.dataset.view, { scrollTop: true, behavior: 'smooth' });
+}
+
+function activateView(view, options = {}) {
+  const targetBtn = document.querySelector(`.nav-item[data-view="${view}"]`);
+  if (!targetBtn) return;
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('view-' + view).classList.add('active');
-  btn.classList.add('active');
+  targetBtn.classList.add('active');
   syncTopbar(view);
   if (view === 'results' && analysisReady) renderResultsView();
+  if (options.scrollTop) {
+    requestAnimationFrame(() => scrollContentToTop(options.behavior || 'auto'));
+  }
 }
 
 function syncTopbar(currentView) {
@@ -749,10 +769,12 @@ function processCSV(text, filename) {
     sortState = { col: null, dir: 1 };
     analysisReady = false;
     lastAnalysisFilename = '';
+    latestAnalysisMeta = null;
     document.getElementById('results-body').innerHTML = `<div class="empty-state"><div class="empty-icon"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="M5 6.5h6M5 9h4"/></svg></div><div class="empty-title">Henüz sonuç yok</div><div class="empty-sub">Analiz sekmesinden bir CSV yükle</div><div class="empty-actions"><button class="btn btn-primary btn-sm" onclick="document.getElementById('csv-file').click()">CSV yükle</button></div></div>`;
     const badgeEl = document.getElementById('nav-results-badge');
     if (badgeEl) { badgeEl.textContent = ''; badgeEl.style.display = 'none'; }
     syncTopbar();
+    scrollContentToTop();
 
     analyzeChunked(dataRows, colMap,
       (pct, done) => {
@@ -770,6 +792,7 @@ function processCSV(text, filename) {
         const pass = allResults.filter(r => r.compliance === 'PASS' && !r.auditExcluded).length;
         const fail = allResults.filter(r => r.compliance === 'FAIL').length;
         const ex   = allResults.filter(r => r.auditExcluded).length;
+        latestAnalysisMeta = { filename, total: allResults.length, pass, fail, ex };
 
         if (badgeEl) { badgeEl.textContent = fail; badgeEl.style.display = fail > 0 ? 'inline' : 'none'; }
         document.getElementById('import-dot').classList.add('ok');
@@ -785,10 +808,14 @@ function processCSV(text, filename) {
               <span class="rs-pill rp-fail">${fail} FAIL</span>
               <span class="rs-pill rp-skip">${ex} excluded</span>
             </div>
-            <div style="margin-top:16px">
-              <button class="btn btn-primary btn-sm" onclick="document.getElementById('nav-results').click()">Detaylı sonuçları gör →</button>
+            <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+              <button class="btn btn-primary btn-sm" onclick="activateView('results', { scrollTop: true, behavior: 'smooth' })">Sonuçları aç →</button>
+              <span style="font-size:12px;color:var(--text3)">Analiz tamamlandı. Sonuç ekranına otomatik yönlendiriliyorsun.</span>
             </div>
           </div>`);
+        setTimeout(() => {
+          if (analysisReady) activateView('results', { scrollTop: true, behavior: 'smooth' });
+        }, 450);
       }
     );
   } catch(e) {
@@ -916,11 +943,14 @@ function renderResultsView() {
     : `${allResults.length} issue işlendi.`;
   const compOpts = [...new Set(allResults.flatMap(r => r.components))].sort()
     .map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  const freshAnalysisNotice = latestAnalysisMeta
+    ? `<div class="banner banner-ok" style="margin-bottom:16px"><b>Yeni analiz hazır</b>${esc(latestAnalysisMeta.filename)} yüklendi. ${latestAnalysisMeta.total} issue sonuç ekranına aktarıldı. Filtreleri kullanarak incelemeye başlayabilirsin.</div>`
+    : '';
   const staleWarn = configChangedAfterAnalysis
     ? `<div class="banner banner-warn" style="margin-bottom:16px"><b>Ayarlar değişti</b>Gösterilen sonuçlar eski konfigürasyona aittir. Doğru analiz için CSV'yi tekrar yükle.</div>`
     : '';
 
-  document.getElementById('results-body').innerHTML = `${staleWarn}
+  document.getElementById('results-body').innerHTML = `${freshAnalysisNotice}${staleWarn}
     <div class="results-hero">
       <div class="results-hero-copy">
         <div class="section-label">Analysis Snapshot</div>
