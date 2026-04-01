@@ -1,44 +1,46 @@
 # CSV Audit Workbench
 
-Standalone bir HTML araci olarak Jira CSV export dosyalarini analiz eder ve issue'larin belirli audit kurallarina uyup uymadigini gosterir.
+Jira CSV export dosyalarını analiz eden, tamamen tarayıcı içinde çalışan tek dosyalık bir audit aracı.
 
-## Amaci
+## 🎯 Amaç
 
-Bu proje, ekiplerin Jira'dan disa aktardigi issue listelerini hizlica kontrol etmesi icin tasarlandi. Arac, her issue'yu yerelde inceler ve eksik ya da hatali noktalar icin acik gerekceler uretir.
+Bu proje, ekiplerin Jira'dan dışa aktardığı issue listelerini hızlıca kontrol etmesi için tasarlandı. Araç her issue'yu yerelde inceler ve eksik ya da hatalı noktalar için açık gerekçeler üretir.
 
-Kontrol edilen basliklar ozetle:
+Kontrol edilen başlıklar özetle:
 
 - issue type uygun mu
-- gecerli component var mi
-- description icinde zorunlu basliklar mevcut mu
-- description icinde Confluence linki var mi
-- haric tutulan label varsa issue audit disi mi sayilmali
+- geçerli component var mı
+- description içinde zorunlu başlıklar mevcut mu
+- description içinde Confluence linki var mı
+- hariç tutulan label varsa issue audit dışı mı sayılmalı
 
-## Nasil Calisir
+## ⚙️ Nasıl Çalışır
 
-Uygulama tamamen tarayicida calisir. Jira API, token veya sunucu tarafli bir servis gerekmez.
+Uygulama tamamen tarayıcıda çalışır. Jira API, token veya sunucu taraflı bir servis gerekmez.
 
-Akis su sekildedir:
+Akış şu şekildedir:
 
-1. Jira'da issue listesini ac.
-2. `Export Excel CSV (all fields)` ile CSV dosyasini indir.
-3. Repo icindeki `index.html` dosyasini tarayicida ac.
-4. CSV dosyasini surukle-birak veya sec.
-5. Arac CSV kolonlarini tanir, her satiri kurallara gore analiz eder ve sonucu tabloda gosterir.
-6. Istersen filtreleme yapip sonucu tekrar CSV olarak disa aktarabilirsin.
+1. Jira'da issue listesini aç.
+2. `Export Excel CSV (all fields)` ile CSV dosyasını indir.
+3. Repo içindeki `index.html` dosyasını tarayıcıda aç.
+4. CSV dosyasını sürükle-bırak veya seç.
+5. Araç CSV kolonlarını tanır, her satırı kurallara göre analiz eder ve sonucu tabloda gösterir.
+6. İstersen filtreleme yapıp sonucu tekrar CSV olarak dışa aktarabilirsin.
 
-## Ozellikler
+## ✨ Özellikler
 
-- Tek dosyali istemci tarafi uygulama
-- Kurallari `Ayarlar` ekranindan guncelleme
-- Sonuclari filtreleme ve siralama
-- Issue detaylarini drawer icinde inceleme
-- Filtrelenmis sonucu CSV olarak indirme
-- Ayarlari tarayicidaki `localStorage` alaninda saklama
+- Tek dosyalı istemci tarafı uygulama
+- Kuralları `Ayarlar` ekranından güncelleme
+- Sonuçları filtreleme ve sıralama
+- Issue detaylarını drawer içinde inceleme
+- Filtrelenmiş sonucu CSV olarak indirme
+- Ayarları tarayıcıdaki `localStorage` alanında saklama
 
-## Beklenen Veri
+## 📄 Beklenen Veri
 
-Arac, Jira'nin CSV export formatini hedefler. Zorunlu kolonlar:
+Araç, Jira'nın CSV export formatını hedefler.
+
+Zorunlu kolonlar:
 
 - `Issue Key`
 - `Summary`
@@ -50,29 +52,29 @@ Desteklenen ek kolonlar:
 - `Description`
 - `Labels`
 
-Kolon tespiti yaygin baslik varyasyonlari, kucuk-buyuk harf farklari ve BOM gibi giris farkliliklarina toleranslidir.
+Kolon tespiti yaygın başlık varyasyonları, küçük-büyük harf farkları ve BOM gibi giriş farklılıklarına toleranslıdır.
 
-## Yapilandirma
+## 🔧 Yapılandırma
 
-`Ayarlar` ekranindan su alanlari degistirebilirsin:
+`Ayarlar` ekranından şu alanları değiştirebilirsin:
 
-- gecerli issue type listesi
-- gecerli component listesi
-- audit disi label listesi
+- geçerli issue type listesi
+- geçerli component listesi
+- audit dışı label listesi
 - Confluence domain
-- description icinde zorunlu olan basliklar
+- description içinde zorunlu olan başlıklar
 - opsiyonel Jira Base URL
 
-## Guvenlik ve Gizlilik
+## 🔒 Güvenlik ve Gizlilik
 
-- Tum analiz yerel olarak tarayicida yapilir.
-- Jira veya Confluence'a otomatik istek atilmaz.
+- Tüm analiz yerel olarak tarayıcıda yapılır.
+- Jira veya Confluence'a otomatik istek atılmaz.
 - API token gerekmez.
-- Veriler tarayicidan disari gonderilmez.
-- Ayarlar yalnizca kullandigin tarayicinin `localStorage` alaninda tutulur.
+- Veriler tarayıcıdan dışarı gönderilmez.
+- Ayarlar yalnızca kullandığın tarayıcının `localStorage` alanında tutulur.
 
-## Calistirma
+## ▶️ Çalıştırma
 
-Build adimi yoktur. Bagimlilik yoktur.
+Build adımı yoktur. Bağımlılık yoktur.
 
-`index.html` dosyasini acman yeterlidir.
+`index.html` dosyasını açman yeterlidir.
