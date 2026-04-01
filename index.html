@@ -1,0 +1,1110 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'unsafe-inline'; img-src data:;">
+<title>CSV Audit Workbench</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0f0f11; --bg2: #16161a; --bg3: #1e1e24; --bg4: #26262e;
+  --border: rgba(255,255,255,0.07); --border2: rgba(255,255,255,0.13);
+  --text: #e8e8ec; --text2: #9494a0; --text3: #5a5a66;
+  --accent: #6e6eff; --accent2: #4e4eff;
+  --pass: #34d399; --pass-bg: rgba(52,211,153,0.1);
+  --fail: #f87171; --fail-bg: rgba(248,113,113,0.1);
+  --warn: #fbbf24; --warn-bg: rgba(251,191,36,0.1);
+  --skip: #6b7280; --skip-bg: rgba(107,114,128,0.12);
+  --mono: 'IBM Plex Mono', monospace; --sans: 'IBM Plex Sans', sans-serif;
+  --r: 8px; --rl: 12px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; line-height: 1.5; }
+
+.app { display: grid; grid-template-columns: 240px 1fr; height: 100vh; overflow: hidden; }
+.sidebar { background: var(--bg2); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+.main { display: flex; flex-direction: column; overflow: hidden; }
+.content { flex: 1; overflow-y: auto; padding: 28px 32px; }
+
+.sb-brand { padding: 20px 20px 16px; border-bottom: 1px solid var(--border); }
+.sb-brand-label { font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 4px; }
+.sb-brand-name { font-size: 15px; font-weight: 500; letter-spacing: -0.01em; }
+.sb-nav { padding: 12px 10px; flex: 1; }
+.sb-group { font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: 0.1em; text-transform: uppercase; padding: 0 10px; margin: 16px 0 6px; }
+.nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--r); cursor: pointer; font-size: 13px; color: var(--text2); border: none; background: none; width: 100%; text-align: left; transition: all 0.12s; }
+.nav-item:hover { color: var(--text); background: var(--bg3); }
+.nav-item.active { color: var(--text); background: var(--bg4); }
+.nav-ic { width: 15px; height: 15px; opacity: 0.5; flex-shrink: 0; }
+.nav-item.active .nav-ic { opacity: 1; }
+.sb-footer { padding: 14px 20px; border-top: 1px solid var(--border); }
+.import-pill { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; color: var(--text3); }
+.import-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text3); flex-shrink: 0; transition: all 0.3s; }
+.import-dot.ok { background: var(--pass); box-shadow: 0 0 5px var(--pass); }
+
+.topbar { padding: 16px 32px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-shrink: 0; background:
+  radial-gradient(circle at top right, rgba(110,110,255,0.12), transparent 32%),
+  linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0)); }
+.topbar-copy { min-width: 0; }
+.topbar-kicker { font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 4px; }
+.topbar-title { font-size: 15px; color: var(--text2); }
+.topbar-title b { color: var(--text); font-weight: 500; }
+.topbar-subtitle { margin-top: 4px; font-size: 12px; color: var(--text3); max-width: 720px; }
+.topbar-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+
+.view { display: none; }
+.view.active { display: block; }
+
+.btn { padding: 7px 14px; border-radius: var(--r); font-size: 12px; font-family: var(--sans); cursor: pointer; border: 1px solid var(--border2); background: var(--bg3); color: var(--text); font-weight: 400; transition: all 0.12s; }
+.btn:hover { background: var(--bg4); }
+.btn:active { transform: scale(0.98); }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 500; }
+.btn-primary:hover { background: var(--accent2); border-color: var(--accent2); }
+.btn-sm { padding: 5px 10px; font-size: 11px; }
+.btn-ghost { background: transparent; border-color: transparent; color: var(--text2); }
+.btn-ghost:hover { background: var(--bg3); color: var(--text); border-color: transparent; }
+.btn.hidden { display: none; }
+
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--rl); padding: 20px 24px; }
+.card-sm { padding: 14px 16px; }
+.section-label { font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 10px; }
+
+.field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+.field:last-child { margin-bottom: 0; }
+.field-label { font-size: 12px; color: var(--text2); }
+.field-hint { font-size: 11px; color: var(--text3); line-height: 1.6; }
+.field-hint strong { color: var(--text2); font-weight: 500; }
+.inp { padding: 8px 12px; font-size: 13px; font-family: var(--mono); border: 1px solid var(--border2); border-radius: var(--r); background: var(--bg3); color: var(--text); width: 100%; transition: border-color 0.12s; }
+.inp:focus { outline: none; border-color: var(--accent); }
+.inp::placeholder { color: var(--text3); }
+.inp-ta { min-height: 90px; resize: vertical; font-size: 12px; line-height: 1.7; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.span2 { grid-column: 1/-1; }
+
+.banner { border-radius: var(--r); padding: 12px 16px; font-size: 12px; margin-bottom: 16px; line-height: 1.6; }
+.banner b { display: block; margin-bottom: 3px; font-size: 13px; }
+.banner-info { background: rgba(110,110,255,0.07); border: 1px solid rgba(110,110,255,0.18); color: var(--text2); }
+.banner-err  { background: var(--fail-bg); border: 1px solid rgba(248,113,113,0.18); color: var(--fail); }
+.banner-ok   { background: var(--pass-bg); border: 1px solid rgba(52,211,153,0.18); color: var(--pass); }
+.banner-warn { background: var(--warn-bg); border: 1px solid rgba(251,191,36,0.18); color: var(--warn); }
+
+.drop-zone { border: 2px dashed var(--border2); border-radius: var(--rl); padding: 40px 24px; text-align: center; cursor: pointer; transition: all 0.15s; user-select: none; }
+.drop-zone:hover, .drop-zone.drag-over { border-color: var(--accent); background: rgba(110,110,255,0.04); }
+.dz-ic { width: 32px; height: 32px; margin: 0 auto 12px; opacity: 0.35; display: block; }
+.dz-title { font-size: 13px; color: var(--text2); margin-bottom: 4px; }
+.dz-sub { font-size: 11px; color: var(--text3); font-family: var(--mono); }
+.hero-grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(280px, 0.9fr); gap: 16px; margin-bottom: 16px; }
+.hero-card { position: relative; overflow: hidden; }
+.hero-card::before { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at top right, rgba(110,110,255,0.12), transparent 42%); pointer-events: none; }
+.hero-card > * { position: relative; z-index: 1; }
+.hero-kicker { font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 10px; }
+.hero-title { font-size: 28px; line-height: 1.1; letter-spacing: -0.03em; margin-bottom: 10px; max-width: 12ch; }
+.hero-sub { font-size: 13px; color: var(--text2); line-height: 1.7; max-width: 60ch; margin-bottom: 18px; }
+.hero-upload-meta { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+.mini-stat { padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--r); background: rgba(255,255,255,0.02); }
+.mini-stat-label { display: block; font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 6px; }
+.mini-stat-value { display: block; font-size: 13px; color: var(--text); }
+.check-grid { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 18px; }
+.check-pill { display: inline-flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 99px; background: var(--bg3); border: 1px solid var(--border); font-size: 12px; color: var(--text2); }
+.check-pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px rgba(110,110,255,0.45); }
+.trust-strip { display: grid; gap: 10px; }
+.trust-item { padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--r); background: var(--bg3); }
+.trust-item b { display: block; font-size: 12px; margin-bottom: 4px; }
+.trust-item span { font-size: 12px; color: var(--text2); line-height: 1.6; }
+
+.step-row { display: flex; align-items: flex-start; gap: 14px; padding: 12px 16px; background: var(--bg3); border: 1px solid var(--border); border-radius: var(--r); margin-bottom: 8px; }
+.step-num { width: 22px; height: 22px; border-radius: 50%; background: var(--bg4); border: 1px solid var(--border2); display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 11px; color: var(--text3); flex-shrink: 0; margin-top: 1px; }
+.step-body { flex: 1; font-size: 12px; color: var(--text2); line-height: 1.6; }
+.step-body code { font-family: var(--mono); font-size: 11px; background: var(--bg4); padding: 1px 5px; border-radius: 3px; color: var(--text); }
+.config-guide { margin-bottom: 14px; }
+.config-guide-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.config-guide-item { padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--r); background: var(--bg3); }
+.config-guide-item b { display: block; font-size: 12px; margin-bottom: 4px; }
+.config-guide-item span { font-size: 12px; color: var(--text2); line-height: 1.6; }
+
+.progress-wrap { text-align: center; padding: 40px; }
+.spinner { width: 28px; height: 28px; border: 2px solid var(--bg4); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto 14px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.progress-lbl { font-size: 13px; color: var(--text2); margin-bottom: 4px; }
+.pbar-wrap { width: 220px; height: 2px; background: var(--bg4); border-radius: 99px; margin: 14px auto 0; overflow: hidden; }
+.pbar { height: 100%; background: var(--accent); border-radius: 99px; transition: width 0.3s ease; }
+.empty-state { text-align: center; padding: 70px 40px; }
+.empty-icon { width: 42px; height: 42px; margin: 0 auto 14px; border-radius: 50%; border: 1px solid var(--border2); display: flex; align-items: center; justify-content: center; color: var(--accent); background: rgba(110,110,255,0.08); }
+.empty-title { font-size: 14px; font-weight: 500; margin-bottom: 6px; }
+.empty-sub { font-size: 12px; color: var(--text3); }
+.empty-actions { margin-top: 14px; display: flex; justify-content: center; }
+
+.metrics { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 22px; }
+.met { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--rl); padding: 14px 16px; }
+.met-lbl { font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 8px; }
+.met-val { font-size: 28px; font-weight: 300; letter-spacing: -0.02em; }
+.met-sub { font-size: 11px; color: var(--text3); margin-top: 4px; }
+.m-fail .met-val { color: var(--fail); }
+.m-skip .met-val { color: var(--skip); }
+.results-hero { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; padding: 16px 18px; border: 1px solid var(--border); border-radius: var(--rl); background:
+  linear-gradient(135deg, rgba(110,110,255,0.09), rgba(110,110,255,0.01) 45%),
+  var(--bg2); margin-bottom: 16px; }
+.results-hero-copy { min-width: 0; }
+.results-hero-title { font-size: 18px; line-height: 1.2; margin-bottom: 6px; }
+.results-hero-sub { font-size: 12px; color: var(--text2); line-height: 1.7; }
+.results-hero-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+
+.filters { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; }
+.fsel { padding: 6px 10px; font-size: 12px; font-family: var(--sans); border: 1px solid var(--border2); border-radius: var(--r); background: var(--bg3); color: var(--text2); cursor: pointer; }
+.fsel:focus { outline: none; border-color: var(--accent); color: var(--text); }
+.fsearch { padding: 6px 12px; font-size: 12px; font-family: var(--mono); border: 1px solid var(--border2); border-radius: var(--r); background: var(--bg3); color: var(--text); min-width: 190px; }
+.fsearch:focus { outline: none; border-color: var(--accent); }
+.fsearch::placeholder { color: var(--text3); }
+.ftoggle { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text3); cursor: pointer; }
+.ftoggle input { accent-color: var(--accent); }
+.fcount { font-family: var(--mono); font-size: 11px; color: var(--text3); margin-left: auto; }
+
+.table-note { font-size: 11px; color: var(--text3); margin: -4px 0 12px; display: flex; gap: 10px; flex-wrap: wrap; }
+.table-note b { color: var(--text2); font-weight: 500; }
+.tbl-wrap { border: 1px solid var(--border); border-radius: var(--rl); overflow: auto; overscroll-behavior: contain; }
+table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 13px; }
+thead tr { background: var(--bg2); }
+th { padding: 10px 14px; text-align: left; font-family: var(--mono); font-size: 10px; font-weight: 400; color: var(--text3); letter-spacing: 0.08em; text-transform: uppercase; border-bottom: 1px solid var(--border); white-space: nowrap; }
+td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--bg3); cursor: pointer; }
+.key-a { color: var(--accent); text-decoration: none; font-family: var(--mono); font-size: 12px; font-weight: 500; }
+.key-a:hover { text-decoration: underline; }
+.key-plain { color: var(--accent); font-family: var(--mono); font-size: 12px; font-weight: 500; }
+.sum-cell { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--text2); }
+.mono-cell { font-family: var(--mono); font-size: 11px; color: var(--text3); }
+.no-rows { text-align: center; padding: 48px; color: var(--text3); font-size: 13px; }
+
+.badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 4px; font-family: var(--mono); font-size: 10px; font-weight: 500; letter-spacing: 0.04em; white-space: nowrap; }
+.b-pass { background: var(--pass-bg); color: var(--pass); }
+.b-fail { background: var(--fail-bg); color: var(--fail); }
+.b-excl { background: var(--skip-bg); color: var(--skip); }
+.b-na   { background: var(--skip-bg); color: var(--skip); }
+.tag { display: inline-block; padding: 2px 6px; border-radius: 3px; font-family: var(--mono); font-size: 10px; color: var(--fail); background: var(--fail-bg); margin: 1px; }
+.tag-gray { color: var(--skip); background: var(--skip-bg); }
+
+.rs-pills { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.rs-pill { padding: 4px 12px; border-radius: 99px; font-family: var(--mono); font-size: 12px; border: 1px solid; }
+.rp-pass { background: var(--pass-bg); border-color: rgba(52,211,153,0.2); color: var(--pass); }
+.rp-fail { background: var(--fail-bg); border-color: rgba(248,113,113,0.2); color: var(--fail); }
+.rp-skip { background: var(--skip-bg); border-color: rgba(107,114,128,0.2); color: var(--skip); }
+
+.rule-row { display: flex; align-items: flex-start; gap: 14px; padding: 14px 16px; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--rl); margin-bottom: 8px; }
+.rule-num { width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--border2); display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 11px; color: var(--text3); flex-shrink: 0; }
+.rule-body { flex: 1; }
+.rule-title { font-size: 13px; font-weight: 500; margin-bottom: 3px; }
+.rule-desc { font-size: 12px; color: var(--text3); }
+.rule-badge { font-family: var(--mono); font-size: 10px; padding: 2px 7px; border-radius: 3px; flex-shrink: 0; }
+.rb-block { background: var(--fail-bg); color: var(--fail); }
+.rb-skip  { background: var(--skip-bg); color: var(--skip); }
+.rb-na    { background: var(--skip-bg); color: var(--skip); }
+
+.overlay { position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,0.55); display: none; }
+.overlay.open { display: block; }
+.drawer { position: fixed; top: 0; right: 0; bottom: 0; width: 460px; background: var(--bg2); border-left: 1px solid var(--border); z-index: 201; overflow-y: auto; transform: translateX(100%); transition: transform 0.2s ease; display: flex; flex-direction: column; }
+.drawer.open { transform: translateX(0); }
+.drw-head { padding: 20px 24px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.drw-close { float: right; background: none; border: none; color: var(--text3); font-size: 16px; cursor: pointer; line-height: 1; padding: 2px; }
+.drw-close:hover { color: var(--text); }
+.drw-key { font-family: var(--mono); font-size: 16px; font-weight: 500; color: var(--accent); margin-bottom: 5px; }
+.drw-sum { font-size: 13px; color: var(--text2); margin-bottom: 12px; line-height: 1.5; }
+.drw-badges { display: flex; gap: 6px; flex-wrap: wrap; }
+.drw-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 20px; flex: 1; }
+.ds-title { font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 10px; }
+.d-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+.d-row:last-child { border-bottom: none; }
+.d-rk { color: var(--text3); font-family: var(--mono); font-size: 11px; }
+.d-rv { font-family: var(--mono); font-size: 11px; font-weight: 500; }
+.reason-item { display: flex; gap: 8px; padding: 8px 12px; background: var(--fail-bg); border: 1px solid rgba(248,113,113,0.15); border-radius: var(--r); font-size: 12px; color: var(--fail); margin-bottom: 6px; align-items: flex-start; }
+.desc-block { background: var(--bg3); border: 1px solid var(--border); border-radius: var(--r); padding: 12px; font-family: var(--mono); font-size: 11px; color: var(--text3); line-height: 1.7; max-height: 160px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; }
+.jira-a { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 12px; color: var(--accent); text-decoration: none; }
+.jira-a:hover { text-decoration: underline; }
+
+@media (max-width: 980px) {
+  .app { grid-template-columns: 1fr; }
+  .sidebar { border-right: none; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 40; }
+  .sb-brand { padding: 16px 16px 12px; }
+  .sb-group { display: none; }
+  .sb-nav { display: flex; gap: 8px; overflow-x: auto; padding: 10px 16px 8px; }
+  .nav-item { flex: 0 0 auto; width: auto; padding: 9px 12px; border: 1px solid transparent; white-space: nowrap; }
+  .nav-item.active { border-color: var(--border2); }
+  .sb-footer { padding: 0 16px 14px; border-top: none; }
+  .topbar { padding: 14px 20px; }
+  .content { padding: 20px; }
+  .grid2 { grid-template-columns: 1fr; }
+  .span2 { grid-column: auto; }
+  .hero-grid { grid-template-columns: 1fr; }
+  .hero-title { max-width: none; }
+  .hero-upload-meta { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .config-guide-grid { grid-template-columns: 1fr; }
+  .results-hero { flex-direction: column; }
+  .results-hero-actions { justify-content: flex-start; }
+  .drawer { width: min(100%, 460px); }
+}
+
+@media (max-width: 640px) {
+  .topbar { padding: 14px 16px; align-items: flex-start; flex-direction: column; }
+  .content { padding: 16px; }
+  .card { padding: 16px 18px; }
+  .card-sm { padding: 14px; }
+  .drop-zone { padding: 28px 16px; }
+  .hero-upload-meta { grid-template-columns: 1fr; }
+  .metrics { grid-template-columns: 1fr; }
+  .filters { display: grid; grid-template-columns: 1fr; }
+  .fsearch, .fsel { width: 100%; min-width: 0; }
+  .ftoggle, .fcount { width: 100%; margin-left: 0; }
+  .filters .btn { width: 100%; }
+  .topbar-actions { width: 100%; }
+  .topbar-actions .btn { width: 100%; }
+  .drawer { width: 100%; }
+  .d-row { flex-direction: column; align-items: flex-start; gap: 4px; }
+}
+
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 99px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sb-brand">
+      <div class="sb-brand-label">Standalone App</div>
+      <div class="sb-brand-name">CSV Audit Workbench</div>
+    </div>
+    <nav class="sb-nav">
+      <div class="sb-group">Workspace</div>
+      <button class="nav-item active" data-view="analyze" onclick="nav(this)">
+        <svg class="nav-ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 3h10v2H3zM3 7h7M3 10h5"/><path d="M11 10l2 2-2 2"/></svg>
+        Analiz
+      </button>
+      <button class="nav-item" data-view="results" onclick="nav(this)" id="nav-results" style="justify-content:flex-start">
+        <svg class="nav-ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M5 8h6M5 5.5h6M5 10.5h4"/></svg>
+        Sonuçlar<span id="nav-results-badge" style="display:none;margin-left:auto;font-family:var(--mono);font-size:10px;background:var(--fail-bg);color:var(--fail);padding:1px 6px;border-radius:3px;"></span>
+      </button>
+      <div class="sb-group">Referans</div>
+      <button class="nav-item" data-view="config" onclick="nav(this)">
+        <svg class="nav-ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 4h8M4 8h5M4 12h3"/></svg>
+        Ayarlar
+      </button>
+      <button class="nav-item" data-view="rules" onclick="nav(this)">
+        <svg class="nav-ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="5" cy="5" r="1.5"/><circle cx="5" cy="11" r="1.5"/><path d="M9 5h4M9 11h4"/></svg>
+        Kurallar
+      </button>
+    </nav>
+    <div class="sb-footer">
+      <div class="import-pill">
+        <div class="import-dot" id="import-dot"></div>
+        <span id="import-text">Veri yüklenmedi</span>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div class="topbar-copy">
+        <div class="topbar-kicker" id="page-kicker">CSV-first audit</div>
+        <div class="topbar-title"><b id="page-title">Analiz</b></div>
+        <div class="topbar-subtitle" id="page-subtitle">CSV yükleyip issue'ları yerelde değerlendir, sorunları nedenleriyle gör.</div>
+      </div>
+      <div class="topbar-actions">
+        <button class="btn btn-ghost" id="topbar-results-btn" onclick="document.getElementById('nav-results').click()">Sonuçlara git</button>
+        <button class="btn btn-primary" id="topbar-upload-btn" onclick="document.getElementById('csv-file').click()">CSV yükle</button>
+      </div>
+    </div>
+    <div class="content">
+
+      <!-- ANALYZE / IMPORT -->
+      <div class="view active" id="view-analyze">
+        <div class="hero-grid">
+          <div class="card hero-card">
+            <div class="hero-kicker">Upload once, inspect fast</div>
+            <div class="hero-title">Jira export'unu birkaç saniyede denetle</div>
+            <div class="hero-sub">Dosyayı sürükle, araç issue'ları yerelde analiz etsin, eksikleri ve audit dışı durumları açıklamalarıyla sıralasın.</div>
+            <div class="drop-zone" id="drop-zone"
+                 onclick="document.getElementById('csv-file').click()"
+                 ondragover="handleDragOver(event)"
+                 ondragleave="document.getElementById('drop-zone').classList.remove('drag-over')"
+                 ondrop="handleDrop(event)">
+              <svg class="dz-ic" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M16 22V10M10 16l6-6 6 6"/>
+                <path d="M6 26h20"/>
+              </svg>
+              <div class="dz-title">CSV dosyasını buraya sürükle veya tıkla</div>
+              <div class="dz-sub">Jira → Issues → Export → Export Excel CSV (all fields)</div>
+            </div>
+            <input type="file" id="csv-file" accept=".csv" style="display:none" onchange="handleFileSelect(this)">
+            <div class="hero-upload-meta">
+              <div class="mini-stat"><span class="mini-stat-label">Girdi</span><span class="mini-stat-value">Jira CSV export</span></div>
+              <div class="mini-stat"><span class="mini-stat-label">Çıktı</span><span class="mini-stat-value">Filtrelenebilir audit paneli</span></div>
+              <div class="mini-stat"><span class="mini-stat-label">Çalışma şekli</span><span class="mini-stat-value">Tamamen tarayıcı içinde</span></div>
+            </div>
+          </div>
+
+          <div class="card hero-card">
+            <div class="section-label">Bu araç ne yapar</div>
+            <div class="hero-sub" style="margin-bottom:0">İlk kez kullanan biri için en önemli şeyler tek bakışta burada.</div>
+            <div class="check-grid">
+              <span class="check-pill">Issue type doğrulama</span>
+              <span class="check-pill">Component kontrolü</span>
+              <span class="check-pill">Description başlıkları</span>
+              <span class="check-pill">Confluence link taraması</span>
+              <span class="check-pill">Excluded label yönetimi</span>
+              <span class="check-pill">CSV export desteği</span>
+            </div>
+            <div class="trust-strip">
+              <div class="trust-item">
+                <b>Sunucu gerektirmez</b>
+                <span>CSV dosyası ve sonuçlar tarayıcıdan dışarı gönderilmez. Paylaşılabilir, hafif bir inceleme aracı gibi çalışır.</span>
+              </div>
+              <div class="trust-item">
+                <b>Sonuçlar gerekçelidir</b>
+                <span>Her issue için yalnızca geçip kalma değil, neden o sonuca ulaşıldığı da gösterilir.</span>
+              </div>
+              <div class="trust-item">
+                <b>Kurallar esnektir</b>
+                <span>Ayarlar sekmesinden takımına göre type, component, label ve zorunlu başlık listelerini uyarlayabilirsin.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:16px">
+          <div class="section-label" style="margin-bottom:12px">İlk kullanım akışı</div>
+          <div class="step-row"><div class="step-num">1</div><div class="step-body">Jira'da sprint/proje filtresini uygula, issue listesini görüntüle.</div></div>
+          <div class="step-row"><div class="step-num">2</div><div class="step-body">Sağ üst köşedeki <code>Export</code> menüsünü aç → <code>Export Excel CSV (all fields)</code> seç.</div></div>
+          <div class="step-row"><div class="step-num">3</div><div class="step-body">İndirilen <code>.csv</code> dosyasını yukarıdaki alana sürükle. Analiz otomatik başlar.</div></div>
+          <div class="step-row"><div class="step-num">4</div><div class="step-body">Sonuçları <strong>Sonuçlar</strong> sekmesinde incele veya filtrelenmiş CSV olarak indir.</div></div>
+        </div>
+
+        <div class="banner banner-warn" style="font-size:11px;margin-bottom:0">
+          <b>Kısıtlamalar</b>
+          Maturity kontrolü yapılamaz — CSV changelog içermez, tüm issue'lar N/A döner.
+          Confluence smart-link'leri plain text aktarımda URL içermeyebilir.
+          Issue linkleri için Ayarlar sekmesinden Jira Base URL gir.
+        </div>
+
+        <div id="analyze-body" style="margin-top:16px"></div>
+      </div>
+
+      <!-- RESULTS -->
+      <div class="view" id="view-results">
+        <div id="results-body">
+          <div class="empty-state">
+            <div class="empty-icon">
+              <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="M5 6.5h6M5 9h4"/></svg>
+            </div>
+            <div class="empty-title">Henüz sonuç yok</div>
+            <div class="empty-sub">Analiz sekmesinden bir CSV yükle</div>
+            <div class="empty-actions"><button class="btn btn-primary btn-sm" onclick="document.getElementById('csv-file').click()">CSV yükle</button></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CONFIG -->
+      <div class="view" id="view-config">
+        <div class="banner banner-info">Audit kontrollerinin eşik değerleri burada yönetilir. CSV formatına bağlı davranışlar uygulama akışında sabittir.</div>
+        <div class="card card-sm config-guide">
+          <div class="section-label">Hızlı rehber</div>
+          <div class="config-guide-grid">
+            <div class="config-guide-item">
+              <b>Çoğu kullanım için</b>
+              <span>Varsayılan değerler yeterlidir. Sadece takımınızın issue type veya component listesi farklıysa düzenlemen gerekir.</span>
+            </div>
+            <div class="config-guide-item">
+              <b>Confluence kontrolü</b>
+              <span>Bu alan için tam URL değil, sadece domain girmen yeterlidir. Örnek: <code>confluence.example.com</code>.</span>
+            </div>
+            <div class="config-guide-item">
+              <b>Sonuçlar neden değişmez?</b>
+              <span>Ayarları kaydettikten sonra eski analiz sonuçları korunur. Yeni kuralların uygulanması için CSV'yi tekrar yüklemelisin.</span>
+            </div>
+          </div>
+        </div>
+        <div class="grid2">
+          <div class="card card-sm span2">
+            <div class="section-label">Jira Base URL <span style="font-weight:400;color:var(--text3)">(opsiyonel — issue linkleri için)</span></div>
+            <input class="inp" id="c-jirabase" placeholder="https://jira.example.com">
+            <div class="field-hint" style="margin-top:6px"><strong>Analiz için zorunlu değildir.</strong> Sadece sonuç ekranındaki issue linklerini aktif eder.</div>
+          </div>
+          <div class="card card-sm">
+            <div class="section-label">Geçerli issue type'lar</div>
+            <input class="inp" id="c-types" value="Story, Task">
+            <div class="field-hint" style="margin-top:6px">Virgülle ayır. Eşleşme büyük-küçük harf farklarına karşı toleranslıdır.</div>
+          </div>
+          <div class="card card-sm">
+            <div class="section-label">Geçerli component'lar</div>
+            <input class="inp" id="c-comps" value="CMS, Backend, Mobil, Web">
+            <div class="field-hint" style="margin-top:6px">Bir issue içindeki component'lardan en az biri bu listede olursa kural geçer.</div>
+          </div>
+          <div class="card card-sm">
+            <div class="section-label">Dışarıda bırakılan label'lar</div>
+            <input class="inp" id="c-labels" value="notest, erişilebilirlik">
+            <div class="field-hint" style="margin-top:6px">Bu label'lardan biri varsa issue diğer kurallardan muaf tutulur ve <code>N/A</code> olur.</div>
+          </div>
+          <div class="card card-sm">
+            <div class="section-label">Confluence domain</div>
+            <input class="inp" id="c-confluence" value="confluence.example.com">
+            <div class="field-hint" style="margin-top:6px">Tam bağlantı yerine yalnızca domain yaz. Araç bu domain'in CSV içinde geçtiğini arar.</div>
+          </div>
+          <div class="card card-sm span2">
+            <div class="section-label">Zorunlu açıklama başlıkları (her satır bir başlık)</div>
+            <textarea class="inp inp-ta" id="c-headers">Kullanıcı Hikayesi Tanımı
+Mevcut Durum
+Hedeflenen Durum
+Çözüm Gereksinimleri
+Kabul Kriterleri</textarea>
+            <div class="field-hint" style="margin-top:6px">Description içinde bulunmasını beklediğin başlıkları satır satır gir. Eksik olanlar sonuç ekranında ayrı ayrı gösterilir.</div>
+          </div>
+          <div class="card card-sm span2">
+            <div class="section-label">Label → Sebep eşleşmeleri <span style="font-weight:400;color:var(--text3)">(her satır: label:sebep)</span></div>
+            <textarea class="inp inp-ta" id="c-label-reasons" style="min-height:70px">notest:test edilebilir değil
+erişilebilirlik:erişilebilirlik maddesi</textarea>
+            <div class="field-hint" style="margin-top:6px">Bu alan yalnızca audit dışı issue'larda kullanıcıya gösterilecek açıklamayı özelleştirir.</div>
+          </div>
+        </div>
+        <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <button class="btn btn-primary" onclick="saveConfig()">Kaydet</button>
+          <button class="btn" onclick="resetConfig()">Varsayılanlara dön</button>
+          <span id="cfg-saved" style="font-family:var(--mono);font-size:11px;color:var(--pass);margin-left:12px;display:none">✓ Kaydedildi</span>
+        </div>
+      </div>
+
+      <!-- RULES -->
+      <div class="view" id="view-rules">
+        <div style="font-size:13px;color:var(--text3);margin-bottom:20px">Kurallar deterministiktir; eşik değerleri Ayarlar sekmesinden gelir, CSV'ye özgü davranışlar uygulama içinde tanımlıdır.</div>
+        <div class="rule-row"><div class="rule-num">1</div><div class="rule-body"><div class="rule-title">Issue type kontrolü</div><div class="rule-desc">Issue type, geçerli type listesinde olmalıdır.</div></div><span class="rule-badge rb-block">BLOCKING</span></div>
+        <div class="rule-row"><div class="rule-num">2</div><div class="rule-body"><div class="rule-title">Component kontrolü</div><div class="rule-desc">En az bir geçerli component atanmış olmalıdır.</div></div><span class="rule-badge rb-block">BLOCKING</span></div>
+        <div class="rule-row"><div class="rule-num">3</div><div class="rule-body"><div class="rule-title">Açıklama başlıkları</div><div class="rule-desc">Description'da tüm zorunlu başlıklar bulunmalıdır.</div></div><span class="rule-badge rb-block">BLOCKING</span></div>
+        <div class="rule-row"><div class="rule-num">4</div><div class="rule-body"><div class="rule-title">Confluence linki</div><div class="rule-desc">Description'da Confluence domain'ini içeren en az bir link olmalıdır.</div></div><span class="rule-badge rb-block">BLOCKING</span></div>
+        <div class="rule-row"><div class="rule-num">5</div><div class="rule-body"><div class="rule-title">Audit exclusion</div><div class="rule-desc">Hariç tutulan label içeren issue'lar diğer kurallardan muaf tutulur.</div></div><span class="rule-badge rb-skip">SKIP</span></div>
+        <div class="rule-row"><div class="rule-num">6</div><div class="rule-body"><div class="rule-title">Olgunluk — changelog</div><div class="rule-desc">CSV'de changelog bulunmadığından uygulanamaz. Tüm issue'lar N/A olarak işaretlenir.</div></div><span class="rule-badge rb-na">N/A</span></div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- DRAWER -->
+<div class="overlay" id="overlay" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <div class="drw-head">
+    <button class="drw-close" onclick="closeDrawer()">✕</button>
+    <div class="drw-key" id="d-key"></div>
+    <div class="drw-sum" id="d-sum"></div>
+    <div class="drw-badges" id="d-badges"></div>
+  </div>
+  <div class="drw-body">
+    <div><div class="ds-title">Issue bilgileri</div><div id="d-meta"></div></div>
+    <div><div class="ds-title">Audit bulguları</div><div id="d-findings"></div></div>
+    <div><div class="ds-title">Açıklama önizlemesi</div><div class="desc-block" id="d-desc"></div></div>
+    <div><a class="jira-a" id="d-link" href="#" target="_blank" style="display:none">Jira'da aç <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 9L9 3M5 3h4v4"/></svg></a></div>
+  </div>
+</div>
+
+<script>
+// ── STATE ─────────────────────────────────────────────
+const DEFAULT_CFG = {
+  validTypes: ['Story','Task'],
+  validComponents: ['CMS','Backend','Mobil','Web'],
+  requiredHeaders: ['Kullanıcı Hikayesi Tanımı','Mevcut Durum','Hedeflenen Durum','Çözüm Gereksinimleri','Kabul Kriterleri'],
+  excludedLabels: ['notest','erişilebilirlik'],
+  confluenceDomain: 'confluence.example.com',
+  jiraBaseUrl: '',
+  labelReasons: { 'notest': 'test edilebilir değil', 'erişilebilirlik': 'erişilebilirlik maddesi' },
+};
+let CFG = cloneConfig(DEFAULT_CFG);
+let allResults = [];
+let filteredResults = [];
+let sortState = { col: null, dir: 1 };
+let analysisReady = false;
+let configChangedAfterAnalysis = false;
+let lastAnalysisFilename = '';
+
+// ── SECURITY HELPERS ──────────────────────────────────
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = String(s ?? '');
+  return d.innerHTML;
+}
+
+function safeHref(url) {
+  try {
+    const u = new URL(url);
+    return (u.protocol === 'https:' || u.protocol === 'http:') ? url : '#';
+  } catch { return '#'; }
+}
+
+function normalizeCompareText(value) {
+  return String(value ?? '')
+    .replace(/^\uFEFF/, '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ı/g, 'i')
+    .replace(/\s+/g, ' ');
+}
+
+function normalizeLookupKey(value) {
+  return normalizeCompareText(value).replace(/[^a-z0-9]+/g, '');
+}
+
+function findColumnIndex(headers, aliases) {
+  const normalizedHeaders = headers.map(normalizeLookupKey);
+  for (const alias of aliases.map(normalizeLookupKey)) {
+    const exactIndex = normalizedHeaders.indexOf(alias);
+    if (exactIndex >= 0) return exactIndex;
+  }
+  return -1;
+}
+
+function splitList(value, pattern) {
+  return String(value ?? '').split(pattern).map(s => s.trim()).filter(Boolean);
+}
+
+function cloneConfig(source) {
+  return {
+    ...source,
+    validTypes: [...source.validTypes],
+    validComponents: [...source.validComponents],
+    requiredHeaders: [...source.requiredHeaders],
+    excludedLabels: [...source.excludedLabels],
+    labelReasons: { ...source.labelReasons },
+  };
+}
+
+function applyConfigToForm(config) {
+  document.getElementById('c-jirabase').value = config.jiraBaseUrl || '';
+  document.getElementById('c-types').value = config.validTypes.join(', ');
+  document.getElementById('c-comps').value = config.validComponents.join(', ');
+  document.getElementById('c-labels').value = config.excludedLabels.join(', ');
+  document.getElementById('c-confluence').value = config.confluenceDomain || '';
+  document.getElementById('c-headers').value = config.requiredHeaders.join('\n');
+  document.getElementById('c-label-reasons').value = Object.entries(config.labelReasons)
+    .map(([k, v]) => `${k}:${v}`).join('\n');
+}
+
+function flashConfigMessage(message) {
+  const el = document.getElementById('cfg-saved');
+  el.textContent = message;
+  el.style.display = 'inline';
+  setTimeout(() => { el.style.display = 'none'; }, 2200);
+}
+
+// ── NAV ───────────────────────────────────────────────
+function nav(btn) {
+  const view = btn.dataset.view;
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('view-' + view).classList.add('active');
+  btn.classList.add('active');
+  syncTopbar(view);
+  if (view === 'results' && analysisReady) renderResultsView();
+}
+
+function syncTopbar(currentView) {
+  const view = currentView || document.querySelector('.nav-item.active')?.dataset.view || 'analyze';
+  const meta = {
+    analyze: {
+      kicker: 'CSV-first audit',
+      title: 'Analiz',
+      subtitle: 'CSV yükleyip issue\'ları yerelde değerlendir, sorunları nedenleriyle gör.',
+    },
+    results: {
+      kicker: 'Review dashboard',
+      title: 'Sonuçlar',
+      subtitle: analysisReady
+        ? 'Filtrele, detayları aç ve istersen sonucu CSV olarak dışa aktar.'
+        : 'Analiz çalıştıktan sonra issue sonuçlarını burada inceleyebilirsin.',
+    },
+    config: {
+      kicker: 'Rule tuning',
+      title: 'Ayarlar',
+      subtitle: 'Takımının audit eşiğine göre kural girdilerini düzenle ve yeni analiz için kaydet.',
+    },
+    rules: {
+      kicker: 'Rule reference',
+      title: 'Kurallar',
+      subtitle: 'Uygulamanın hangi kontrolleri hangi mantıkla uyguladığını hızlıca gözden geçir.',
+    },
+  };
+  const current = meta[view] || meta.analyze;
+  document.getElementById('page-kicker').textContent = current.kicker;
+  document.getElementById('page-title').textContent = current.title;
+  document.getElementById('page-subtitle').textContent = current.subtitle;
+
+  const resultsBtn = document.getElementById('topbar-results-btn');
+  if (resultsBtn) resultsBtn.classList.toggle('hidden', !analysisReady);
+}
+
+// ── CSV PARSER ────────────────────────────────────────
+function parseCSV(text) {
+  const rows = [];
+  let field = '', row = [], inQuote = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuote) {
+      if (ch === '"' && text[i + 1] === '"') { field += '"'; i++; }
+      else if (ch === '"') { inQuote = false; }
+      else { field += ch; }
+    } else {
+      if (ch === '"') { inQuote = true; }
+      else if (ch === ',') { row.push(field); field = ''; }
+      else if (ch === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else if (ch !== '\r') { field += ch; }
+    }
+  }
+  if (row.length || field) { row.push(field); if (row.some(c => c.trim())) rows.push(row); }
+  return rows;
+}
+
+function detectColumns(headers) {
+  return {
+    key:         findColumnIndex(headers, ['issue key', 'issuekey', 'key', 'issue id', 'issueid', 'id']),
+    summary:     findColumnIndex(headers, ['summary', 'issue summary']),
+    issueType:   findColumnIndex(headers, ['issue type', 'issuetype', 'type', 'issue type name']),
+    components:  findColumnIndex(headers, ['component/s', 'components', 'component']),
+    description: findColumnIndex(headers, ['description', 'issue description']),
+    labels:      findColumnIndex(headers, ['labels', 'label/s', 'label']),
+  };
+}
+
+// ── FILE HANDLING ─────────────────────────────────────
+function handleFileSelect(input) {
+  const file = input.files[0];
+  if (!file) return;
+  input.value = '';
+  readFile(file);
+}
+
+function handleDragOver(e) {
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.add('drag-over');
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) readFile(file);
+}
+
+function readFile(file) {
+  const sizeMB = (file.size / 1024 / 1024).toFixed(1);
+  const sizeWarn = file.size > 10 * 1024 * 1024
+    ? `<div class="banner banner-warn" style="margin-bottom:12px"><b>Büyük dosya (${sizeMB} MB)</b>Analiz yavaş çalışabilir.</div>` : '';
+  setAnalyzeBody(`${sizeWarn}<div class="progress-wrap"><div class="spinner"></div><div class="progress-lbl">CSV okunuyor…</div><div class="pbar-wrap"><div class="pbar" style="width:20%"></div></div></div>`);
+  const reader = new FileReader();
+  reader.onload = e => {
+    const bytes = new Uint8Array(e.target.result);
+    let text = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+    if (text.includes('\uFFFD')) text = new TextDecoder('windows-1252').decode(bytes);
+    processCSV(text, file.name);
+  };
+  reader.onerror = () => setAnalyzeBody(`<div class="banner banner-err"><b>Dosya okunamadı</b>Dosyayı tekrar seç.</div>`);
+  reader.readAsArrayBuffer(file);
+}
+
+function analyzeChunked(dataRows, colMap, onProgress, onComplete) {
+  const CHUNK = 100;
+  const results = [];
+  let offset = 0;
+  function next() {
+    const end = Math.min(offset + CHUNK, dataRows.length);
+    for (let i = offset; i < end; i++) results.push(analyzeIssue(dataRows[i], colMap));
+    offset = end;
+    onProgress(Math.round(offset / dataRows.length * 100), offset);
+    if (offset < dataRows.length) setTimeout(next, 0);
+    else onComplete(results);
+  }
+  setTimeout(next, 0);
+}
+
+function processCSV(text, filename) {
+  try {
+    const parsed = parseCSV(text);
+    if (parsed.length < 2) {
+      setAnalyzeBody(`<div class="banner banner-err"><b>CSV boş veya tanınamadı</b>Jira'dan "Export Excel CSV (all fields)" ile dışa aktarıldığından emin ol.</div>`);
+      return;
+    }
+
+    const colMap = detectColumns(parsed[0]);
+    if (colMap.key < 0 || colMap.summary < 0) {
+      setAnalyzeBody(`<div class="banner banner-err"><b>Zorunlu sütun bulunamadı</b>CSV'de "Issue Key" ve "Summary" sütunları olmalı. Bulunan başlıklar: ${esc(parsed[0].slice(0,10).join(', '))}</div>`);
+      return;
+    }
+
+    const dataRows = parsed.slice(1).filter(r => r.some(c => c.trim()));
+    if (!dataRows.length) {
+      setAnalyzeBody(`<div class="banner banner-err"><b>Veri satırı yok</b>CSV başlık içeriyor ama hiç issue bulunamadı.</div>`);
+      return;
+    }
+
+    setAnalyzeBody(`<div class="progress-wrap"><div class="spinner"></div><div class="progress-lbl">0 / ${dataRows.length} issue analiz ediliyor…</div><div class="pbar-wrap"><div class="pbar" id="analysis-pbar" style="width:2%"></div></div></div>`);
+
+    allResults = [];
+    filteredResults = [];
+    sortState = { col: null, dir: 1 };
+    analysisReady = false;
+    lastAnalysisFilename = '';
+    document.getElementById('results-body').innerHTML = `<div class="empty-state"><div class="empty-icon"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="M5 6.5h6M5 9h4"/></svg></div><div class="empty-title">Henüz sonuç yok</div><div class="empty-sub">Analiz sekmesinden bir CSV yükle</div><div class="empty-actions"><button class="btn btn-primary btn-sm" onclick="document.getElementById('csv-file').click()">CSV yükle</button></div></div>`;
+    const badgeEl = document.getElementById('nav-results-badge');
+    if (badgeEl) { badgeEl.textContent = ''; badgeEl.style.display = 'none'; }
+    syncTopbar();
+
+    analyzeChunked(dataRows, colMap,
+      (pct, done) => {
+        const pb = document.getElementById('analysis-pbar');
+        const lb = document.querySelector('#analyze-body .progress-lbl');
+        if (pb) pb.style.width = pct + '%';
+        if (lb) lb.textContent = `${done} / ${dataRows.length} issue analiz ediliyor…`;
+      },
+      (results) => {
+        allResults = results;
+        analysisReady = true;
+        configChangedAfterAnalysis = false;
+        lastAnalysisFilename = filename;
+
+        const pass = allResults.filter(r => r.compliance === 'PASS' && !r.auditExcluded).length;
+        const fail = allResults.filter(r => r.compliance === 'FAIL').length;
+        const ex   = allResults.filter(r => r.auditExcluded).length;
+
+        if (badgeEl) { badgeEl.textContent = fail; badgeEl.style.display = fail > 0 ? 'inline' : 'none'; }
+        document.getElementById('import-dot').classList.add('ok');
+        document.getElementById('import-text').textContent = `${allResults.length} issue`;
+        syncTopbar();
+
+        setAnalyzeBody(`
+          <div class="card">
+            <div style="font-size:14px;font-weight:500;margin-bottom:4px">Analiz tamamlandı — ${allResults.length} issue</div>
+            <div style="font-family:var(--mono);font-size:11px;color:var(--text3);margin-bottom:14px">${esc(filename)}</div>
+            <div class="rs-pills">
+              <span class="rs-pill rp-pass">${pass} PASS</span>
+              <span class="rs-pill rp-fail">${fail} FAIL</span>
+              <span class="rs-pill rp-skip">${ex} excluded</span>
+            </div>
+            <div style="margin-top:16px">
+              <button class="btn btn-primary btn-sm" onclick="document.getElementById('nav-results').click()">Detaylı sonuçları gör →</button>
+            </div>
+          </div>`);
+      }
+    );
+  } catch(e) {
+    setAnalyzeBody(`<div class="banner banner-err"><b>CSV parse hatası</b>${esc(e.message)}</div>`);
+  }
+}
+
+// ── RULE ENGINE ───────────────────────────────────────
+function analyzeIssue(row, colMap) {
+  const issueKey   = (row[colMap.key]         || '').trim();
+  const summary    = (row[colMap.summary]     || '').trim();
+  const issueType  = (row[colMap.issueType]   || '').trim();
+  const rawComps   = colMap.components  >= 0 ? (row[colMap.components]  || '') : '';
+  const rawLabels  = colMap.labels      >= 0 ? (row[colMap.labels]      || '') : '';
+  const descSource = colMap.description >= 0 ? String(row[colMap.description] || '') : '';
+  const descText   = descSource.slice(0, 4000);
+
+  const components = splitList(rawComps, /[,;]/);
+  const labels     = splitList(rawLabels, /[,;\s]+/);
+  const normalizedIssueType = normalizeCompareText(issueType);
+  const normalizedComponents = components.map(normalizeCompareText);
+  const normalizedLabels = labels.map(normalizeCompareText);
+  const normalizedExcludedLabels = new Set(CFG.excludedLabels.map(normalizeCompareText));
+  const normalizedValidTypes = new Set(CFG.validTypes.map(normalizeCompareText));
+  const normalizedValidComponents = new Set(CFG.validComponents.map(normalizeCompareText));
+  const normalizedDescription = normalizeCompareText(descSource);
+  const allRowText = normalizeCompareText(row.filter(Boolean).join(' '));
+  const normalizedConfluenceDomain = normalizeCompareText(CFG.confluenceDomain);
+
+  const jiraUrl = CFG.jiraBaseUrl && issueKey
+    ? `${CFG.jiraBaseUrl.trim().replace(/\/$/, '')}/browse/${encodeURIComponent(issueKey)}` : '';
+
+  const labelReasonMap = new Map(
+    Object.entries(CFG.labelReasons).map(([k, v]) => [normalizeCompareText(k), v])
+  );
+
+  if (normalizedLabels.some(label => normalizedExcludedLabels.has(label))) {
+    const matchedLabels = labels.filter((label, index) => normalizedExcludedLabels.has(normalizedLabels[index]));
+    const reasons = matchedLabels.map(label => {
+      const normalizedLabel = normalizeCompareText(label);
+      return labelReasonMap.get(normalizedLabel) || `Audit excluded — hariç tutulan label mevcut: ${label}`;
+    });
+    return { issueKey, summary, issueType, components, component: components.join(', ') || '—',
+             compliance: 'N/A', maturity: 'N/A', reasons,
+             auditExcluded: true, jiraUrl, descText };
+  }
+
+  const reasons = [];
+  let compliance = 'PASS';
+
+  if (!normalizedValidTypes.has(normalizedIssueType))
+    { reasons.push(`Geçersiz issue type: "${issueType}"`); compliance = 'FAIL'; }
+  if (!normalizedComponents.some(component => normalizedValidComponents.has(component)))
+    { reasons.push(`Geçerli component yok: [${components.join(', ') || 'boş'}]`); compliance = 'FAIL'; }
+  const missing = CFG.requiredHeaders.filter(h => !normalizedDescription.includes(normalizeCompareText(h)));
+  if (missing.length) {
+    const reason = !descSource.trim() || missing.length === CFG.requiredHeaders.length
+      ? 'Analiz yok'
+      : `Story içeriği uygun değil — eksik başlıklar: ${missing.join(', ')}`;
+    reasons.push(reason);
+    compliance = 'FAIL';
+  }
+  if (normalizedConfluenceDomain && !allRowText.includes(normalizedConfluenceDomain))
+    { reasons.push('Confluence linki eklenmemiş'); compliance = 'FAIL'; }
+
+  return { issueKey, summary, issueType, components, component: components.join(', ') || '—',
+           compliance, maturity: 'N/A', reasons, auditExcluded: false, jiraUrl, descText };
+}
+
+// ── CONFIG ────────────────────────────────────────────
+function saveConfig() {
+  CFG.jiraBaseUrl      = document.getElementById('c-jirabase').value.trim();
+  CFG.validTypes       = document.getElementById('c-types').value.split(',').map(s=>s.trim()).filter(Boolean);
+  CFG.validComponents  = document.getElementById('c-comps').value.split(',').map(s=>s.trim()).filter(Boolean);
+  CFG.excludedLabels   = document.getElementById('c-labels').value.split(',').map(s=>s.trim()).filter(Boolean);
+  CFG.confluenceDomain = document.getElementById('c-confluence').value.trim();
+  CFG.requiredHeaders  = document.getElementById('c-headers').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  CFG.labelReasons     = Object.fromEntries(
+    document.getElementById('c-label-reasons').value.split('\n')
+      .map(l => l.trim()).filter(Boolean)
+      .map(l => { const idx = l.indexOf(':'); return idx > 0 ? [l.slice(0, idx).trim().toLowerCase(), l.slice(idx + 1).trim()] : null; })
+      .filter(Boolean)
+  );
+  localStorage.setItem('jiraAuditConfig', JSON.stringify({
+    jiraBaseUrl: CFG.jiraBaseUrl,
+    validTypes: CFG.validTypes,
+    validComponents: CFG.validComponents,
+    excludedLabels: CFG.excludedLabels,
+    confluenceDomain: CFG.confluenceDomain,
+    requiredHeaders: CFG.requiredHeaders,
+    labelReasons: CFG.labelReasons,
+  }));
+  if (analysisReady) configChangedAfterAnalysis = true;
+  flashConfigMessage('✓ Kaydedildi');
+}
+
+function resetConfig() {
+  CFG = cloneConfig(DEFAULT_CFG);
+  applyConfigToForm(CFG);
+  localStorage.setItem('jiraAuditConfig', JSON.stringify({
+    jiraBaseUrl: CFG.jiraBaseUrl,
+    validTypes: CFG.validTypes,
+    validComponents: CFG.validComponents,
+    excludedLabels: CFG.excludedLabels,
+    confluenceDomain: CFG.confluenceDomain,
+    requiredHeaders: CFG.requiredHeaders,
+    labelReasons: CFG.labelReasons,
+  }));
+  if (analysisReady) configChangedAfterAnalysis = true;
+  flashConfigMessage('✓ Varsayılanlar yüklendi');
+}
+
+// ── UTIL ──────────────────────────────────────────────
+function setAnalyzeBody(html) { document.getElementById('analyze-body').innerHTML = html; }
+
+// ── RESULTS ───────────────────────────────────────────
+function renderResultsView() {
+  const pass = allResults.filter(r => r.compliance === 'PASS' && !r.auditExcluded).length;
+  const fail = allResults.filter(r => r.compliance === 'FAIL').length;
+  const ex   = allResults.filter(r => r.auditExcluded).length;
+  const auditable = pass + fail;
+  const passRate  = auditable > 0 ? Math.round(pass / auditable * 100) : 0;
+  const leadText = lastAnalysisFilename
+    ? `${esc(lastAnalysisFilename)} dosyasından ${allResults.length} issue işlendi.`
+    : `${allResults.length} issue işlendi.`;
+  const compOpts = [...new Set(allResults.flatMap(r => r.components))].sort()
+    .map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  const staleWarn = configChangedAfterAnalysis
+    ? `<div class="banner banner-warn" style="margin-bottom:16px"><b>Ayarlar değişti</b>Gösterilen sonuçlar eski konfigürasyona aittir. Doğru analiz için CSV'yi tekrar yükle.</div>`
+    : '';
+
+  document.getElementById('results-body').innerHTML = `${staleWarn}
+    <div class="results-hero">
+      <div class="results-hero-copy">
+        <div class="section-label">Analysis Snapshot</div>
+        <div class="results-hero-title">Issue'ları filtrele, ayıkla ve detay düzeyinde incele</div>
+        <div class="results-hero-sub">${leadText} PASS oranı yalnızca denetime tabi issue'lar üzerinden hesaplanır.</div>
+      </div>
+      <div class="results-hero-actions">
+        <button class="btn btn-ghost" onclick="document.querySelector('[data-view=&quot;analyze&quot;]').click()">Yeni CSV yükle</button>
+        <button class="btn btn-primary" onclick="exportCSV()">CSV indir</button>
+      </div>
+    </div>
+    <div class="metrics">
+      <div class="met"><div class="met-lbl">Toplam</div><div class="met-val">${allResults.length}</div><div class="met-sub">analiz edildi</div></div>
+      <div class="met"><div class="met-lbl">PASS</div><div class="met-val" style="color:var(--pass)">${pass}</div><div class="met-sub">${passRate}% uyumluluk</div></div>
+      <div class="met m-fail"><div class="met-lbl">FAIL</div><div class="met-val">${fail}</div><div class="met-sub">uyumsuz</div></div>
+      <div class="met m-skip"><div class="met-lbl">Excluded</div><div class="met-val">${ex}</div><div class="met-sub">audit dışı</div></div>
+    </div>
+    <div class="filters">
+      <input class="fsearch" id="f-q" placeholder="key veya başlık…" oninput="applyFilters()">
+      <select class="fsel" id="f-comp" onchange="applyFilters()"><option value="">Tüm compliance</option><option value="PASS">PASS</option><option value="FAIL">FAIL</option></select>
+      <select class="fsel" id="f-component" onchange="applyFilters()"><option value="">Tüm component</option>${compOpts}</select>
+      <label class="ftoggle"><input type="checkbox" id="f-excl" onchange="applyFilters()"> Excluded göster</label>
+      <span class="fcount" id="f-count"></span>
+      <button class="btn btn-ghost btn-sm" onclick="exportCSV()">CSV indir</button>
+    </div>
+    <div class="table-note">
+      <span><b>İpucu:</b> Satıra tıklayarak detay panelini açabilirsin.</span>
+      <span><b>Dar ekran:</b> Tabloyu yatay kaydırarak tüm kolonları görebilirsin.</span>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th style="width:100px;cursor:pointer;user-select:none" onclick="sortBy('issueKey')" id="th-issueKey">Issue</th><th>Başlık</th>
+          <th style="width:68px;cursor:pointer;user-select:none" onclick="sortBy('issueType')" id="th-issueType">Type</th><th style="width:100px">Component</th>
+          <th style="width:80px;cursor:pointer;user-select:none" onclick="sortBy('compliance')" id="th-compliance">Compliance</th>
+          <th>Bulgular</th>
+        </tr></thead>
+        <tbody id="tbl-body"></tbody>
+      </table>
+    </div>`;
+  applyFilters();
+}
+
+function sortBy(col) {
+  if (sortState.col === col) sortState.dir *= -1;
+  else { sortState.col = col; sortState.dir = 1; }
+  applyFilters();
+}
+
+function applyFilters() {
+  const q         = (document.getElementById('f-q')?.value || '').toLowerCase();
+  const comp      = document.getElementById('f-comp')?.value || '';
+  const component = document.getElementById('f-component')?.value || '';
+  const showEx    = document.getElementById('f-excl')?.checked || false;
+
+  let list = allResults.filter(r => {
+    if (r.auditExcluded && !showEx) return false;
+    if (q && !r.issueKey.toLowerCase().includes(q) && !r.summary.toLowerCase().includes(q)) return false;
+    if (comp && r.compliance !== comp) return false;
+    if (component && !r.components.includes(component)) return false;
+    return true;
+  }).sort((a, b) => {
+    if (sortState.col) {
+      const va = String(a[sortState.col] ?? '');
+      const vb = String(b[sortState.col] ?? '');
+      if (va < vb) return -sortState.dir;
+      if (va > vb) return sortState.dir;
+      return 0;
+    }
+    if (a.compliance === 'FAIL' && b.compliance !== 'FAIL') return -1;
+    if (b.compliance === 'FAIL' && a.compliance !== 'FAIL') return 1;
+    return 0;
+  });
+
+  filteredResults = list;
+  document.getElementById('f-count').textContent = `${list.length} issue`;
+  const tbody = document.getElementById('tbl-body');
+  if (!list.length) { tbody.innerHTML = `<tr><td colspan="6" class="no-rows">Eşleşen issue bulunamadı</td></tr>`; return; }
+
+  tbody.innerHTML = list.map(r => {
+    const cb = r.compliance === 'PASS' ? '<span class="badge b-pass">PASS</span>'
+             : r.compliance === 'FAIL' ? '<span class="badge b-fail">FAIL</span>'
+             : '<span class="badge b-na">N/A</span>';
+    const tags = r.reasons.slice(0,2).map(x => `<span class="tag">${esc(x.length>30 ? x.slice(0,30)+'…' : x)}</span>`).join('')
+               + (r.reasons.length > 2 ? `<span class="tag tag-gray">+${r.reasons.length-2}</span>` : '');
+    const keyCell = r.jiraUrl
+      ? `<a class="key-a" href="${safeHref(r.jiraUrl)}" target="_blank" onclick="event.stopPropagation()">${esc(r.issueKey)}</a>`
+      : `<span class="key-plain">${esc(r.issueKey)}</span>`;
+    return `<tr data-key="${esc(r.issueKey)}" onclick="openDrawer(this.dataset.key)">
+      <td>${keyCell}</td>
+      <td><div class="sum-cell" title="${esc(r.summary)}">${esc(r.summary)}</div></td>
+      <td><span class="mono-cell">${esc(r.issueType)}</span></td>
+      <td><span class="mono-cell">${esc(r.component)}</span></td>
+      <td>${cb}</td>
+      <td>${tags || '<span style="color:var(--text3);font-family:var(--mono);font-size:10px">—</span>'}</td>
+    </tr>`;
+  }).join('');
+
+  const colLabels = { issueKey:'Issue', issueType:'Type', compliance:'Compliance' };
+  Object.keys(colLabels).forEach(col => {
+    const th = document.getElementById('th-' + col);
+    if (!th) return;
+    th.textContent = sortState.col === col ? colLabels[col] + (sortState.dir === 1 ? ' ↑' : ' ↓') : colLabels[col];
+  });
+}
+
+// ── DRAWER ────────────────────────────────────────────
+function openDrawer(key) {
+  const r = allResults.find(i => i.issueKey === key);
+  if (!r) return;
+  document.getElementById('d-key').textContent = r.issueKey;
+  document.getElementById('d-sum').textContent = r.summary;
+  const cb = r.compliance === 'PASS' ? '<span class="badge b-pass">PASS</span>'
+           : r.compliance === 'FAIL' ? '<span class="badge b-fail">FAIL</span>'
+           : '<span class="badge b-na">N/A</span>';
+  document.getElementById('d-badges').innerHTML = cb + (r.auditExcluded ? ' <span class="badge b-excl">AUDIT EXCLUDED</span>' : '');
+  document.getElementById('d-meta').innerHTML = `
+    <div class="d-row"><span class="d-rk">Issue type</span><span class="d-rv">${esc(r.issueType)}</span></div>
+    <div class="d-row"><span class="d-rk">Component</span><span class="d-rv">${esc(r.component)}</span></div>
+    <div class="d-row"><span class="d-rk">Compliance</span><span class="d-rv">${esc(r.compliance)}</span></div>
+    <div class="d-row"><span class="d-rk">Maturity</span><span class="d-rv" style="color:var(--text3)">N/A — CSV</span></div>`;
+  document.getElementById('d-findings').innerHTML = r.reasons.length
+    ? r.reasons.map(x => `<div class="reason-item"><span>●</span>${esc(x)}</div>`).join('')
+    : '<div style="font-size:12px;color:var(--text3)">Bulgu yok — tüm kurallar geçti.</div>';
+  document.getElementById('d-desc').textContent = r.descText || '(açıklama yok)';
+  const dLink = document.getElementById('d-link');
+  if (r.jiraUrl) { dLink.href = safeHref(r.jiraUrl); dLink.style.display = 'inline-flex'; }
+  else { dLink.style.display = 'none'; }
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('drawer').classList.add('open');
+}
+
+function closeDrawer() {
+  document.getElementById('overlay').classList.remove('open');
+  document.getElementById('drawer').classList.remove('open');
+}
+
+// ── CSV EXPORT ────────────────────────────────────────
+function exportCSV() {
+  const cols = [
+    { key: 'issueKey',      label: 'Issue Key' },
+    { key: 'summary',       label: 'Başlık' },
+    { key: 'issueType',     label: 'Issue Type' },
+    { key: 'component',     label: 'Component' },
+    { key: 'compliance',    label: 'Compliance' },
+    { key: 'auditExcluded', label: 'Audit Dışı' },
+    { key: 'reasons',       label: 'Bulgular' },
+  ];
+  const rows = filteredResults.map(r => cols.map(({ key }) => {
+    const v = key === 'reasons' ? r.reasons.join(' | ') : String(r[key]);
+    return `"${v.replace(/"/g,'""')}"`;
+  }).join(','));
+  const csv = [cols.map(c => c.label).join(','), ...rows].join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,\uFEFF' + encodeURIComponent(csv);
+  a.download = `audit-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+
+// ── INIT ──────────────────────────────────────────────
+function loadConfig() {
+  try {
+    const saved = localStorage.getItem('jiraAuditConfig');
+    if (!saved) { applyConfigToForm(CFG); return; }
+    const c = JSON.parse(saved);
+    CFG = {
+      ...cloneConfig(DEFAULT_CFG),
+      ...(c || {}),
+      validTypes: c.validTypes || DEFAULT_CFG.validTypes,
+      validComponents: c.validComponents || DEFAULT_CFG.validComponents,
+      excludedLabels: c.excludedLabels || DEFAULT_CFG.excludedLabels,
+      requiredHeaders: c.requiredHeaders || DEFAULT_CFG.requiredHeaders,
+      labelReasons: c.labelReasons || DEFAULT_CFG.labelReasons,
+    };
+    applyConfigToForm(CFG);
+  } catch {
+    CFG = cloneConfig(DEFAULT_CFG);
+    applyConfigToForm(CFG);
+  }
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDrawer(); });
+loadConfig();
+syncTopbar();
+</script>
+</body>
+</html>
