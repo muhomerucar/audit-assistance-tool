@@ -218,9 +218,18 @@ tbody tr:hover { background: var(--bg3); cursor: pointer; }
 .d-rk { color: var(--text3); font-family: var(--mono); font-size: 11px; }
 .d-rv { font-family: var(--mono); font-size: 11px; font-weight: 500; }
 .reason-item { display: flex; gap: 8px; padding: 8px 12px; background: var(--fail-bg); border: 1px solid rgba(248,113,113,0.15); border-radius: var(--r); font-size: 12px; color: var(--fail); margin-bottom: 6px; align-items: flex-start; }
-.desc-block { background: var(--bg3); border: 1px solid var(--border); border-radius: var(--r); padding: 12px; font-family: var(--mono); font-size: 11px; color: var(--text3); line-height: 1.7; max-height: 160px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; }
+.desc-block { background: var(--bg); border: 1px solid var(--border2); border-radius: var(--r); padding: 16px 18px; font-family: var(--sans); font-size: 13px; color: var(--text2); line-height: 1.8; max-height: 320px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; letter-spacing: 0.01em; }
+.desc-block::-webkit-scrollbar { width: 4px; }
+.desc-block::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 99px; }
 .jira-a { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 12px; color: var(--accent); text-decoration: none; }
 .jira-a:hover { text-decoration: underline; }
+.jira-btn { display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px; border-radius: var(--r); background: rgba(110,110,255,0.1); border: 1px solid rgba(110,110,255,0.25); color: var(--accent); font-family: var(--mono); font-size: 12px; font-weight: 500; text-decoration: none; transition: all 0.15s; }
+.jira-btn:hover { background: rgba(110,110,255,0.18); border-color: rgba(110,110,255,0.4); text-decoration: none; }
+.jira-nourl { display: flex; align-items: center; gap: 8px; padding: 9px 16px; border-radius: var(--r); background: var(--bg3); border: 1px solid var(--border2); color: var(--text3); font-family: var(--mono); font-size: 12px; }
+.jira-nourl a { color: var(--accent); text-decoration: none; }
+.jira-nourl a:hover { text-decoration: underline; }
+.key-clickable { color: var(--accent); font-family: var(--mono); font-size: 12px; font-weight: 500; cursor: pointer; border-bottom: 1px dashed rgba(110,110,255,0.4); transition: border-color 0.12s; }
+.key-clickable:hover { border-bottom-color: var(--accent); }
 
 @media (max-width: 980px) {
   .app { grid-template-columns: 1fr; }
@@ -322,7 +331,7 @@ tbody tr:hover { background: var(--bg3); cursor: pointer; }
           <div class="card hero-card">
             <div class="hero-kicker" lang="en">Upload once, inspect fast</div>
             <div class="hero-title">Jira export'unu birkaç saniyede denetle</div>
-            <div class="hero-sub">Dosyayı sürükle, araç issue'ları yerelde analiz etsin, eksikleri ve audit dışı durumları açıklamalarıyla sıralasın.</div>
+            <div class="hero-sub">Dosyayı sürükle, araç issue'ları yerelde analiz etsin, eksikleri ve AUDIT dışı durumları açıklamalarıyla sıralasın.</div>
             <div class="drop-zone" id="drop-zone"
                  onclick="document.getElementById('csv-file').click()"
                  ondragover="handleDragOver(event)"
@@ -338,7 +347,7 @@ tbody tr:hover { background: var(--bg3); cursor: pointer; }
             <input type="file" id="csv-file" accept=".csv" style="display:none" onchange="handleFileSelect(this)">
             <div class="hero-upload-meta">
               <div class="mini-stat"><span class="mini-stat-label">Girdi</span><span class="mini-stat-value">Jira CSV export</span></div>
-              <div class="mini-stat"><span class="mini-stat-label">Çıktı</span><span class="mini-stat-value">Filtrelenebilir audit paneli</span></div>
+              <div class="mini-stat"><span class="mini-stat-label">Çıktı</span><span class="mini-stat-value">Filtrelenebilir AUDIT paneli</span></div>
               <div class="mini-stat"><span class="mini-stat-label">Çalışma şekli</span><span class="mini-stat-value">Tamamen tarayıcı içinde</span></div>
             </div>
           </div>
@@ -381,7 +390,7 @@ tbody tr:hover { background: var(--bg3); cursor: pointer; }
 
         <div class="banner banner-warn" style="font-size:11px;margin-bottom:0">
           <b>Kısıtlamalar</b>
-          Maturity kontrolü yapılamaz — CSV changelog içermez, tüm issue'lar N/A döner.
+          Olgunluk kontrolü yapılamaz — CSV changelog içermez, tüm issue'lar N/A döner.
           Confluence smart-link'leri plain text aktarımda URL içermeyebilir.
           Issue linkleri için Ayarlar sekmesinden Jira Base URL gir.
         </div>
@@ -448,6 +457,7 @@ tbody tr:hover { background: var(--bg3); cursor: pointer; }
             <div class="section-label">Confluence domain</div>
             <input class="inp" id="c-confluence" value="confluence.example.com">
             <div class="field-hint" style="margin-top:6px">Tam bağlantı yerine yalnızca domain yaz. Araç bu domain'in CSV içinde geçtiğini arar.</div>
+            <div class="field-hint" style="margin-top:4px;color:var(--warn)">⚠ Varsayılan değeri takımının gerçek Confluence domain'i ile değiştir, aksi hâlde tüm issue'lar bu kontrolden FAIL alır.</div>
           </div>
           <div class="card card-sm span2">
             <div class="section-label">Zorunlu açıklama başlıkları (her satır bir başlık)</div>
@@ -462,7 +472,7 @@ Kabul Kriterleri</textarea>
             <div class="section-label">Label → Sebep eşleşmeleri <span style="font-weight:400;color:var(--text3)">(her satır: label:sebep)</span></div>
             <textarea class="inp inp-ta" id="c-label-reasons" style="min-height:70px">notest:test edilebilir değil
 erişilebilirlik:erişilebilirlik maddesi</textarea>
-            <div class="field-hint" style="margin-top:6px">Bu alan yalnızca audit dışı issue'larda kullanıcıya gösterilecek açıklamayı özelleştirir.</div>
+            <div class="field-hint" style="margin-top:6px">Bu alan yalnızca AUDIT dışı issue'larda kullanıcıya gösterilecek açıklamayı özelleştirir.</div>
           </div>
         </div>
         <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
@@ -479,7 +489,7 @@ erişilebilirlik:erişilebilirlik maddesi</textarea>
         <div class="rule-row"><div class="rule-num">2</div><div class="rule-body"><div class="rule-title">Component kontrolü</div><div class="rule-desc">En az bir geçerli component atanmış olmalıdır.</div></div><span class="rule-badge rb-block">BLOCKING</span></div>
         <div class="rule-row"><div class="rule-num">3</div><div class="rule-body"><div class="rule-title">Açıklama başlıkları</div><div class="rule-desc">Description'da tüm zorunlu başlıklar bulunmalıdır.</div></div><span class="rule-badge rb-block">BLOCKING</span></div>
         <div class="rule-row"><div class="rule-num">4</div><div class="rule-body"><div class="rule-title">Confluence linki</div><div class="rule-desc">CSV'nin herhangi bir alanında Confluence domain'i geçmelidir (description, özel alanlar veya Confluence Pages dahil).</div></div><span class="rule-badge rb-block">BLOCKING</span></div>
-        <div class="rule-row"><div class="rule-num">5</div><div class="rule-body"><div class="rule-title">Audit exclusion</div><div class="rule-desc">Hariç tutulan label içeren issue'lar diğer kurallardan muaf tutulur.</div></div><span class="rule-badge rb-skip">SKIP</span></div>
+        <div class="rule-row"><div class="rule-num">5</div><div class="rule-body"><div class="rule-title">AUDIT exclusion</div><div class="rule-desc">Hariç tutulan label içeren issue'lar diğer kurallardan muaf tutulur.</div></div><span class="rule-badge rb-skip">SKIP</span></div>
         <div class="rule-row"><div class="rule-num">6</div><div class="rule-body"><div class="rule-title">Olgunluk — changelog</div><div class="rule-desc">CSV'de changelog bulunmadığından uygulanamaz. Tüm issue'lar N/A olarak işaretlenir.</div></div><span class="rule-badge rb-na">N/A</span></div>
       </div>
 
@@ -499,8 +509,21 @@ erişilebilirlik:erişilebilirlik maddesi</textarea>
   <div class="drw-body">
     <div><div class="ds-title">Issue bilgileri</div><div id="d-meta"></div></div>
     <div><div class="ds-title">Audit bulguları</div><div id="d-findings"></div></div>
-    <div><div class="ds-title">Açıklama önizlemesi</div><div class="desc-block" id="d-desc"></div></div>
-    <div><a class="jira-a" id="d-link" href="#" target="_blank" style="display:none">Jira'da aç <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 9L9 3M5 3h4v4"/></svg></a></div>
+    <div style="border-top:1px solid var(--border);padding-top:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div class="ds-title" style="margin-bottom:0">Açıklama önizlemesi</div>
+        <button class="btn btn-ghost btn-sm" id="desc-expand-btn" onclick="toggleDescExpand()" style="font-size:10px;padding:3px 8px;font-family:var(--mono)">Genişlet</button>
+      </div>
+      <div class="desc-block" id="d-desc"></div>
+    </div>
+    <div><a class="jira-btn" id="d-link" href="#" target="_blank" rel="noopener noreferrer" style="display:none">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+      Jira'da aç
+    </a>
+    <div class="jira-nourl" id="d-nolink" style="display:none">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+      Jira linki için <a onclick="activateView('config',{scrollTop:true}); closeDrawer()">Ayarlar'dan Base URL</a> gir
+    </div></div>
   </div>
 </div>
 
@@ -673,7 +696,7 @@ function syncTopbar(currentView) {
     config: {
       kicker: 'Rule tuning',
       title: 'Ayarlar',
-      subtitle: 'Takımının audit eşiğine göre kural girdilerini düzenle ve yeni analiz için kaydet.',
+      subtitle: 'Takımının AUDIT eşiğine göre kural girdilerini düzenle ve yeni analiz için kaydet.',
     },
     rules: {
       kicker: 'Rule reference',
@@ -711,15 +734,61 @@ function parseCSV(text) {
   return rows;
 }
 
+function findAllColumnIndices(headers, aliases) {
+  // Returns every index whose header matches any alias — handles Jira's repeated columns
+  // (e.g. "Component/s" x4, "Labels" x2)
+  const nAliases = new Set(aliases.map(normalizeLookupKey));
+  return headers.reduce((acc, h, i) => {
+    if (nAliases.has(normalizeLookupKey(h))) acc.push(i);
+    return acc;
+  }, []);
+}
+
 function detectColumns(headers) {
   return {
-    key:         findColumnIndex(headers, ['issue key', 'issuekey', 'key', 'issue id', 'issueid', 'id']),
-    summary:     findColumnIndex(headers, ['summary', 'issue summary']),
-    issueType:   findColumnIndex(headers, ['issue type', 'issuetype', 'type', 'issue type name']),
-    components:  findColumnIndex(headers, ['component/s', 'components', 'component']),
-    description: findColumnIndex(headers, ['description', 'issue description']),
-    labels:      findColumnIndex(headers, ['labels', 'label/s', 'label']),
+    key:          findColumnIndex(headers, ['issue key', 'issuekey', 'key', 'issue id', 'issueid', 'id']),
+    summary:      findColumnIndex(headers, ['summary', 'issue summary']),
+    issueType:    findColumnIndex(headers, ['issue type', 'issuetype', 'type', 'issue type name']),
+    // Single-value columns
+    description:  findColumnIndex(headers, ['description', 'issue description']),
+    // Multi-value columns (Jira repeats these for multiple values)
+    componentsAll: findAllColumnIndices(headers, ['component/s', 'components', 'component']),
+    labelsAll:     findAllColumnIndices(headers, ['labels', 'label/s', 'label']),
   };
+}
+
+function collectMultiColValues(row, indices) {
+  // Reads from all repeated columns and merges unique values
+  const seen = new Set();
+  const result = [];
+  for (const idx of indices) {
+    const val = row[idx] || '';
+    for (const item of splitList(val, /[,;]/)) {
+      if (item && !seen.has(item)) { seen.add(item); result.push(item); }
+    }
+  }
+  return result;
+}
+
+function collectMultiColLabels(row, indices) {
+  const seen = new Set();
+  const result = [];
+  for (const idx of indices) {
+    const val = row[idx] || '';
+    for (const item of splitList(val, /[,;\s]+/)) {
+      if (item && !seen.has(item)) { seen.add(item); result.push(item); }
+    }
+  }
+  return result;
+}
+
+function stripHtml(str) {
+  // Remove HTML tags and decode common entities so heading text can be matched
+  return str
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>')
+    .replace(/&nbsp;/gi, ' ').replace(/&quot;/gi, '"').replace(/&#\d+;/gi, ' ')
+    .replace(/&[a-z]+;/gi, ' ');
 }
 
 // ── FILE HANDLING ─────────────────────────────────────
@@ -830,6 +899,8 @@ function processCSV(text, filename) {
         document.getElementById('import-text').textContent = `${allResults.length} issue`;
         syncTopbar();
 
+        const confWarn = (!CFG.confluenceDomain || CFG.confluenceDomain === 'confluence.example.com')
+          ? `<div class="banner banner-warn" style="margin-top:12px;margin-bottom:0"><b>Confluence domain tanımlı değil</b>Ayarlar sekmesinden gerçek Confluence domain'ini girerek kaydet, ardından CSV'yi tekrar yükle. Şu an tüm issue'lar Confluence FAIL alıyor.</div>` : '';
         setAnalyzeBody(`
           <div class="card">
             <div style="font-size:14px;font-weight:500;margin-bottom:4px">Analiz tamamlandı — ${allResults.length} issue</div>
@@ -843,6 +914,7 @@ function processCSV(text, filename) {
               <button class="btn btn-primary btn-sm" onclick="activateView('results', { scrollTop: true, behavior: 'smooth' })">Sonuçları aç →</button>
               <span style="font-size:12px;color:var(--text3)">Analiz tamamlandı. Sonuç ekranına otomatik yönlendiriliyorsun.</span>
             </div>
+            ${confWarn}
           </div>`);
         setTimeout(() => {
           if (analysisReady) activateView('results', { scrollTop: true, behavior: 'smooth' });
@@ -858,26 +930,28 @@ function processCSV(text, filename) {
 function analyzeIssue(row, colMap) {
   const issueKey   = (row[colMap.key]         || '').trim();
   const summary    = (row[colMap.summary]     || '').trim();
-  const issueType  = (row[colMap.issueType]   || '').trim();
-  const rawComps   = colMap.components  >= 0 ? (row[colMap.components]  || '') : '';
-  const rawLabels  = colMap.labels      >= 0 ? (row[colMap.labels]      || '') : '';
-  const descSource = colMap.description >= 0 ? String(row[colMap.description] || '') : '';
-  const descText   = descSource.slice(0, 4000);
+  const issueType  = colMap.issueType >= 0 ? (row[colMap.issueType] || '').trim() : '';
 
-  const components = splitList(rawComps, /[,;]/);
-  const labels     = splitList(rawLabels, /[,;\s]+/);
-  const normalizedIssueType = normalizeCompareText(issueType);
-  const normalizedComponents = components.map(normalizeCompareText);
-  const normalizedLabels = labels.map(normalizeCompareText);
+  // Collect from ALL repeated Component/s and Labels columns
+  const components = collectMultiColValues(row, colMap.componentsAll);
+  const labels     = collectMultiColLabels(row, colMap.labelsAll);
+
+  const descSource = colMap.description >= 0 ? String(row[colMap.description] || '') : '';
+  // Strip HTML for display (preserve original for preview)
+  const descForDisplay = descSource.slice(0, 4000);
+  // Strip HTML tags before header matching so <b>Kullanıcı Hikayesi Tanımı</b> is found
+  const descForSearch  = stripHtml(descSource);
+
+  const normalizedIssueType      = normalizeCompareText(issueType);
+  const normalizedComponents     = components.map(normalizeCompareText);
+  const normalizedLabels         = labels.map(normalizeCompareText);
   const normalizedExcludedLabels = new Set(CFG.excludedLabels.map(normalizeCompareText));
-  const normalizedValidTypes = new Set(CFG.validTypes.map(normalizeCompareText));
-  const normalizedValidComponents = new Set(CFG.validComponents.map(normalizeCompareText));
-  const normalizedDescription = normalizeCompareText(descSource);
-  const allRowText = normalizeCompareText(row.filter(Boolean).join(' '));
+  const normalizedValidTypes     = new Set(CFG.validTypes.map(normalizeCompareText));
+  const normalizedValidComponents= new Set(CFG.validComponents.map(normalizeCompareText));
+  const normalizedDescription    = normalizeCompareText(descForSearch);
+  const allRowText               = normalizeCompareText(row.filter(Boolean).join(' '));
   const normalizedConfluenceDomain = normalizeCompareText(CFG.confluenceDomain);
 
-  const jiraUrl = CFG.jiraBaseUrl && issueKey
-    ? `${CFG.jiraBaseUrl.trim().replace(/\/$/, '')}/browse/${encodeURIComponent(issueKey)}` : '';
 
   const labelReasonMap = new Map(
     Object.entries(CFG.labelReasons).map(([k, v]) => [normalizeCompareText(k), v])
@@ -887,11 +961,11 @@ function analyzeIssue(row, colMap) {
     const matchedLabels = labels.filter((label, index) => normalizedExcludedLabels.has(normalizedLabels[index]));
     const reasons = matchedLabels.map(label => {
       const normalizedLabel = normalizeCompareText(label);
-      return labelReasonMap.get(normalizedLabel) || `Audit excluded — hariç tutulan label mevcut: ${label}`;
+      return labelReasonMap.get(normalizedLabel) || `AUDIT dışı — hariç tutulan label mevcut: ${label}`;
     });
     return { issueKey, summary, issueType, components, component: components.join(', ') || '—',
              compliance: 'N/A', maturity: 'N/A', reasons,
-             auditExcluded: true, jiraUrl, descText };
+             auditExcluded: true, descText: descForDisplay };
   }
 
   const reasons = [];
@@ -901,12 +975,14 @@ function analyzeIssue(row, colMap) {
     { reasons.push(`Geçersiz issue type: "${issueType}"`); compliance = 'FAIL'; }
   if (!normalizedComponents.some(component => normalizedValidComponents.has(component)))
     { reasons.push(`Geçerli component yok: [${components.join(', ') || 'boş'}]`); compliance = 'FAIL'; }
+
+  const descPlainText = descForSearch.trim();
   const missing = CFG.requiredHeaders.filter(h => {
     const nh = normalizeCompareText(h).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     return !new RegExp('(?:^|[^a-z0-9])' + nh + '(?:$|[^a-z0-9])').test(normalizedDescription);
   });
   if (missing.length) {
-    const reason = !descSource.trim() || missing.length === CFG.requiredHeaders.length
+    const reason = !descPlainText || missing.length === CFG.requiredHeaders.length
       ? 'Analiz yok'
       : `Story içeriği uygun değil — eksik başlıklar: ${missing.join(', ')}`;
     reasons.push(reason);
@@ -916,11 +992,19 @@ function analyzeIssue(row, colMap) {
     { reasons.push('Confluence linki eklenmemiş'); compliance = 'FAIL'; }
 
   return { issueKey, summary, issueType, components, component: components.join(', ') || '—',
-           compliance, maturity: 'N/A', reasons, auditExcluded: false, jiraUrl, descText };
+           compliance, maturity: 'N/A', reasons, auditExcluded: false, descText: descForDisplay };
 }
 
 // ── CONFIG ────────────────────────────────────────────
+
+// Computes Jira URL at render time — always reflects the latest CFG.jiraBaseUrl
+function getJiraUrl(issueKey) {
+  if (!CFG.jiraBaseUrl || !issueKey) return '';
+  return `${CFG.jiraBaseUrl.trim().replace(/\/$/, '')}/browse/${encodeURIComponent(issueKey)}`;
+}
+
 function saveConfig() {
+  const prevJiraBaseUrl = CFG.jiraBaseUrl;
   CFG.jiraBaseUrl      = document.getElementById('c-jirabase').value.trim();
   CFG.validTypes       = document.getElementById('c-types').value.split(',').map(s=>s.trim()).filter(Boolean);
   CFG.validComponents  = document.getElementById('c-comps').value.split(',').map(s=>s.trim()).filter(Boolean);
@@ -936,6 +1020,21 @@ function saveConfig() {
   );
   persistConfig();
   if (analysisReady) configChangedAfterAnalysis = true;
+
+  // If jiraBaseUrl changed, refresh the results table immediately so links appear/disappear
+  // without forcing the user to re-upload the CSV
+  if (analysisReady && CFG.jiraBaseUrl !== prevJiraBaseUrl) {
+    const currentView = document.querySelector('.nav-item.active')?.dataset.view;
+    if (currentView === 'results') {
+      applyFilters();
+    }
+    // Also update the drawer if it's open
+    if (document.getElementById('drawer').classList.contains('open')) {
+      const openKey = document.getElementById('drawer').dataset.openKey;
+      if (openKey) openDrawer(openKey);
+    }
+  }
+
   const warnings = [];
   if (!CFG.validTypes.length) warnings.push('Issue type listesi boş');
   if (!CFG.validComponents.length) warnings.push('Component listesi boş');
@@ -990,13 +1089,13 @@ function renderResultsView() {
       <div class="met"><div class="met-lbl">Toplam</div><div class="met-val">${allResults.length}</div><div class="met-sub">analiz edildi</div></div>
       <div class="met"><div class="met-lbl">PASS</div><div class="met-val" style="color:var(--pass)">${pass}</div><div class="met-sub">${passRate}% uyumluluk</div></div>
       <div class="met m-fail"><div class="met-lbl">FAIL</div><div class="met-val">${fail}</div><div class="met-sub">uyumsuz</div></div>
-      <div class="met m-skip"><div class="met-lbl">Excluded</div><div class="met-val">${ex}</div><div class="met-sub">audit dışı</div></div>
+      <div class="met m-skip"><div class="met-lbl">Excluded</div><div class="met-val">${ex}</div><div class="met-sub">AUDIT dışı</div></div>
     </div>
     <div class="filters">
       <input class="fsearch" id="f-q" placeholder="key veya başlık…" oninput="applyFilters()">
       <select class="fsel" id="f-comp" onchange="applyFilters()"><option value="">Tüm compliance</option><option value="PASS">PASS</option><option value="FAIL">FAIL</option></select>
       <select class="fsel" id="f-component" onchange="applyFilters()"><option value="">Tüm component</option>${compOpts}</select>
-      <label class="ftoggle"><input type="checkbox" id="f-excl" onchange="applyFilters()"> Excluded göster</label>
+      <label class="ftoggle"><input type="checkbox" id="f-excl" onchange="applyFilters()"> AUDIT dışını göster</label>
       <span class="fcount" id="f-count"></span>
       <button class="btn btn-ghost btn-sm" onclick="exportCSV()">CSV indir</button>
     </div>
@@ -1017,6 +1116,7 @@ function renderResultsView() {
     </div>`;
   attachResultsInteractions();
   applyFilters();
+  latestAnalysisMeta = null;
 }
 
 function sortBy(col) {
@@ -1061,9 +1161,10 @@ function applyFilters() {
              : '<span class="badge b-na">N/A</span>';
     const tags = r.reasons.slice(0,2).map(x => `<span class="tag">${esc(x.length>30 ? x.slice(0,30)+'…' : x)}</span>`).join('')
                + (r.reasons.length > 2 ? `<span class="tag tag-gray">+${r.reasons.length-2}</span>` : '');
-    const keyCell = r.jiraUrl
-      ? `<a class="key-a" href="${safeHref(r.jiraUrl)}" target="_blank" onclick="event.stopPropagation()">${esc(r.issueKey)}</a>`
-      : `<span class="key-plain">${esc(r.issueKey)}</span>`;
+    const jiraUrl = getJiraUrl(r.issueKey);
+    const keyCell = jiraUrl
+      ? `<a class="key-a" href="${safeHref(jiraUrl)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" title="Jira'da aç: ${esc(r.issueKey)}">${esc(r.issueKey)} <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" style="opacity:0.55"><path d="M3 9L9 3M5 3h4v4"/></svg></a>`
+      : `<span class="key-clickable" data-key="${esc(r.issueKey)}" onclick="event.stopPropagation();openDrawer(this.dataset.key)" title="Detay panelini aç">${esc(r.issueKey)}</span>`;
     return `<tr data-key="${esc(r.issueKey)}" onclick="openDrawer(this.dataset.key)">
       <td>${keyCell}</td>
       <td><div class="sum-cell" title="${esc(r.summary)}">${esc(r.summary)}</div></td>
@@ -1086,32 +1187,72 @@ function applyFilters() {
 function openDrawer(key) {
   const r = allResults.find(i => i.issueKey === key);
   if (!r) return;
-  document.getElementById('d-key').textContent = r.issueKey;
+  const jiraUrl = getJiraUrl(r.issueKey);
+  const keyEl = document.getElementById('d-key');
+  if (jiraUrl) {
+    keyEl.innerHTML = `<a href="${safeHref(jiraUrl)}" target="_blank" rel="noopener noreferrer" style="color:var(--accent);text-decoration:none;display:inline-flex;align-items:center;gap:6px" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${esc(r.issueKey)} <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 9L9 3M5 3h4v4"/></svg></a>`;
+  } else {
+    keyEl.textContent = r.issueKey;
+  }
   document.getElementById('d-sum').textContent = r.summary;
   const cb = r.compliance === 'PASS' ? '<span class="badge b-pass">PASS</span>'
            : r.compliance === 'FAIL' ? '<span class="badge b-fail">FAIL</span>'
            : '<span class="badge b-na">N/A</span>';
-  document.getElementById('d-badges').innerHTML = cb + (r.auditExcluded ? ' <span class="badge b-excl">AUDIT EXCLUDED</span>' : '');
+  document.getElementById('d-badges').innerHTML = cb + (r.auditExcluded ? ' <span class="badge b-excl">AUDIT DIŞI</span>' : '');
   document.getElementById('d-meta').innerHTML = `
     <div class="d-row"><span class="d-rk">Issue type</span><span class="d-rv">${esc(r.issueType)}</span></div>
     <div class="d-row"><span class="d-rk">Component</span><span class="d-rv">${esc(r.component)}</span></div>
     <div class="d-row"><span class="d-rk">Compliance</span><span class="d-rv">${esc(r.compliance)}</span></div>
-    <div class="d-row"><span class="d-rk">Maturity</span><span class="d-rv" style="color:var(--text3)">N/A — CSV</span></div>`;
+    <div class="d-row"><span class="d-rk">Olgunluk</span><span class="d-rv" style="color:var(--text3)">N/A — CSV</span></div>`;
   document.getElementById('d-findings').innerHTML = r.reasons.length
     ? r.reasons.map(x => `<div class="reason-item"><span>●</span>${esc(x)}</div>`).join('')
     : '<div style="font-size:12px;color:var(--text3)">Bulgu yok — tüm kurallar geçti.</div>';
   const truncNote = r.descText.length >= 4000 ? '\n\n— metin kısaltıldı —' : '';
-  document.getElementById('d-desc').textContent = (r.descText || '(açıklama yok)') + truncNote;
+  const descPreview = r.descText.includes('<') ? stripHtml(r.descText) : r.descText;
+  const descContent = descPreview.trim() || '(açıklama yok)';
+  document.getElementById('d-desc').textContent = descContent + truncNote;
+  // Show expand button only if content is likely to overflow the max-height
+  const expandBtn = document.getElementById('desc-expand-btn');
+  if (expandBtn) {
+    expandBtn.style.display = descContent.length > 300 ? 'inline-flex' : 'none';
+    expandBtn.textContent = 'Genişlet';
+  }
+  document.getElementById('d-desc').style.maxHeight = '';
   const dLink = document.getElementById('d-link');
-  if (r.jiraUrl) { dLink.href = safeHref(r.jiraUrl); dLink.style.display = 'inline-flex'; }
-  else { dLink.style.display = 'none'; }
+  const dNoLink = document.getElementById('d-nolink');
+  if (jiraUrl) {
+    dLink.href = safeHref(jiraUrl);
+    dLink.style.display = 'inline-flex';
+    if (dNoLink) dNoLink.style.display = 'none';
+  } else {
+    dLink.style.display = 'none';
+    if (dNoLink) dNoLink.style.display = 'flex';
+  }
   document.getElementById('overlay').classList.add('open');
-  document.getElementById('drawer').classList.add('open');
+  const drawerEl = document.getElementById('drawer');
+  drawerEl.dataset.openKey = r.issueKey;
+  drawerEl.classList.add('open');
 }
 
 function closeDrawer() {
   document.getElementById('overlay').classList.remove('open');
-  document.getElementById('drawer').classList.remove('open');
+  const drawerEl = document.getElementById('drawer');
+  drawerEl.dataset.openKey = '';
+  drawerEl.classList.remove('open');
+  // Reset description expand state
+  const descBlock = document.getElementById('d-desc');
+  const expandBtn = document.getElementById('desc-expand-btn');
+  if (descBlock) descBlock.style.maxHeight = '';
+  if (expandBtn) expandBtn.textContent = 'Genişlet';
+}
+
+function toggleDescExpand() {
+  const descBlock = document.getElementById('d-desc');
+  const expandBtn = document.getElementById('desc-expand-btn');
+  if (!descBlock) return;
+  const isExpanded = descBlock.style.maxHeight === 'none';
+  descBlock.style.maxHeight = isExpanded ? '' : 'none';
+  expandBtn.textContent = isExpanded ? 'Genişlet' : 'Daralt';
 }
 
 // ── CSV EXPORT ────────────────────────────────────────
@@ -1122,7 +1263,7 @@ function exportCSV() {
     { key: 'issueType',     label: 'Issue Type' },
     { key: 'component',     label: 'Component' },
     { key: 'compliance',    label: 'Compliance' },
-    { key: 'auditExcluded', label: 'Audit Dışı' },
+    { key: 'auditExcluded', label: 'AUDIT Dışı' },
     { key: 'reasons',       label: 'Bulgular' },
   ];
   const rows = filteredResults.map(r => cols.map(({ key }) => {
