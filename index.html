@@ -950,6 +950,7 @@ function processCSV(text, filename) {
         const ex   = allResults.filter(r => r.auditExcluded).length;
         latestAnalysisMeta = { filename, total: allResults.length, pass, fail, ex };
 
+        const badgeEl = document.getElementById('nav-results-badge');
         if (badgeEl) { badgeEl.textContent = fail; badgeEl.style.display = fail > 0 ? 'inline' : 'none'; }
         document.getElementById('import-dot').classList.add('ok');
         document.getElementById('import-text').textContent = `${allResults.length} issue`;

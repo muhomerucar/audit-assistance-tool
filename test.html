@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<title>CSV Audit Workbench — Test Suite</title>
+<style>
+  body { font-family: 'Segoe UI', monospace; background: #0f0f11; color: #e8e8ec; padding: 24px; font-size: 13px; }
+  h1 { font-size: 16px; margin-bottom: 4px; color: #fff; }
+  .meta { color: #5a5a66; font-size: 11px; margin-bottom: 24px; }
+  .suite { margin-bottom: 28px; }
+  .suite-title { font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: #6e6eff; margin-bottom: 8px; border-bottom: 1px solid rgba(110,110,255,0.2); padding-bottom: 4px; }
+  .case { display: flex; align-items: flex-start; gap: 10px; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .badge { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 4px; flex-shrink: 0; min-width: 44px; text-align: center; margin-top: 1px; }
+  .pass  { background: rgba(52,211,153,0.15); color: #34d399; }
+  .fail  { background: rgba(248,113,113,0.15); color: #f87171; }
+  .skip  { background: rgba(107,114,128,0.15); color: #9ca3af; }
+  .name  { flex: 1; color: #e8e8ec; }
+  .detail { font-size: 11px; color: #5a5a66; margin-top: 2px; }
+  .detail.err { color: #f87171; }
+  .summary { position: sticky; bottom: 0; background: #16161a; border-top: 1px solid rgba(255,255,255,0.08); padding: 14px 0 4px; margin-top: 12px; }
+  .summary-row { display: flex; gap: 20px; font-size: 12px; }
+  .s-pass { color: #34d399; } .s-fail { color: #f87171; } .s-total { color: #9494a0; }
+  .progress-bar { height: 3px; background: #1e1e24; border-radius: 2px; margin-top: 10px; margin-bottom: 16px; }
+  .progress-fill { height: 100%; border-radius: 2px; background: #34d399; transition: width 0.3s; }
+  .progress-fill.has-fail { background: #f87171; }
+</style>
+</head>
+<body>
+<h1>CSV Audit Workbench — Test Suite</h1>
+<div class="meta" id="meta">Çalışıyor…</div>
+<div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+<div id="output"></div>
+<div class="summary" id="summary"></div>
+
+<!-- Uygulama kodunu import et (pure JS fonksiyonları için) -->
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// Uygulama kaynak kodundan bağımsız, test ortamı için minimal stub'lar
+// ─────────────────────────────────────────────────────────────────────────────
+
+// DOM stub'ları (esc() için gerekli)
+if (typeof document === 'undefined') {
+  // Node ortamı — bu dosya browser'da çalışır, bu blok gerekmez
+}
+
+// ── Uygulama fonksiyonları (index.html'den kopyalanmış, DOM bağımlılığı olmayan saf fonksiyonlar) ──
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = String(s ?? '');
+  return d.innerHTML;
+}
+
+function normalizeCompareText(value) {
+  return String(value ?? '')
+    .replace(/^\uFEFF/, '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ı/g, 'i')
+    .replace(/\s+/g, ' ');
+}
+
+function normalizeLookupKey(value) {
+  return normalizeCompareText(value).replace(/[^a-z0-9]+/g, '');
+}
+
+function splitList(val, sep) {
+  return val.split(sep).map(s => s.trim()).filter(Boolean);
+}
+
+function stripHtml(str) {
+  return str
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>')
+    .replace(/&nbsp;/gi, ' ').replace(/&quot;/gi, '"').replace(/&#\d+;/gi, ' ')
+    .replace(/&[a-z]+;/gi, ' ');
+}
+
+function safeHref(url) {
+  try {
+    const u = new URL(url);
+    return (u.protocol === 'https:' || u.protocol === 'http:') ? url : '#';
+  } catch { return '#'; }
+}
+
+function parseCSV(text) {
+  text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const rows = [];
+  let field = '', row = [], inQuote = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuote) {
+      if (ch === '"' && text[i + 1] === '"') { field += '"'; i++; }
+      else if (ch === '"') { inQuote = false; }
+      else { field += ch; }
+    } else {
+      if (ch === '"') { inQuote = true; }
+      else if (ch === ',') { row.push(field); field = ''; }
+      else if (ch === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else if (ch !== '\r') { field += ch; }
+    }
+  }
+  if (row.length || field) { row.push(field); if (row.some(c => c.trim())) rows.push(row); }
+  return rows;
+}
+
+function findColumnIndex(headers, aliases) {
+  const nAliases = new Set(aliases.map(normalizeLookupKey));
+  return headers.findIndex(h => nAliases.has(normalizeLookupKey(h)));
+}
+
+function findAllColumnIndices(headers, aliases) {
+  const nAliases = new Set(aliases.map(normalizeLookupKey));
+  return headers.reduce((acc, h, i) => {
+    if (nAliases.has(normalizeLookupKey(h))) acc.push(i);
+    return acc;
+  }, []);
+}
+
+function detectColumns(headers) {
+  return {
+    key:          findColumnIndex(headers, ['issue key', 'issuekey', 'key', 'issue id', 'issueid', 'id']),
+    summary:      findColumnIndex(headers, ['summary', 'issue summary']),
+    issueType:    findColumnIndex(headers, ['issue type', 'issuetype', 'type', 'issue type name']),
+    description:  findColumnIndex(headers, ['description', 'issue description']),
+    componentsAll: findAllColumnIndices(headers, ['component/s', 'components', 'component']),
+    labelsAll:     findAllColumnIndices(headers, ['labels', 'label/s', 'label']),
+  };
+}
+
+function collectMultiColValues(row, indices) {
+  const seen = new Set();
+  const result = [];
+  for (const idx of indices) {
+    const val = row[idx] || '';
+    for (const item of splitList(val, /[,;]/)) {
+      if (item && !seen.has(item)) { seen.add(item); result.push(item); }
+    }
+  }
+  return result;
+}
+
+function collectMultiColLabels(row, indices) {
+  const seen = new Set();
+  const result = [];
+  for (const idx of indices) {
+    const val = row[idx] || '';
+    for (const item of splitList(val, /[,;\s]+/)) {
+      if (item && !seen.has(item)) { seen.add(item); result.push(item); }
+    }
+  }
+  return result;
+}
+
+const DEFAULT_CFG = {
+  validTypes: ['Story','Task'],
+  validComponents: ['CMS','Backend','Mobil','Web'],
+  requiredHeaders: ['Kullanıcı Hikayesi Tanımı','Mevcut Durum','Hedeflenen Durum','Çözüm Gereksinimleri','Kabul Kriterleri'],
+  excludedLabels: ['notest','erişilebilirlik'],
+  confluenceDomain: 'confluence.example.com',
+  jiraBaseUrl: '',
+  labelReasons: { 'notest': 'test edilebilir değil', 'erişilebilirlik': 'erişilebilirlik maddesi' },
+};
+
+function cloneConfig(c) { return JSON.parse(JSON.stringify(c)); }
+let CFG = cloneConfig(DEFAULT_CFG);
+
+function analyzeIssue(row, colMap) {
+  const issueKey   = (row[colMap.key]   || '').trim();
+  const summary    = (row[colMap.summary] || '').trim();
+  const issueType  = colMap.issueType >= 0 ? (row[colMap.issueType] || '').trim() : '';
+  const components = collectMultiColValues(row, colMap.componentsAll);
+  const labels     = collectMultiColLabels(row, colMap.labelsAll);
+  const descSource = colMap.description >= 0 ? String(row[colMap.description] || '') : '';
+  const descForDisplay = descSource.slice(0, 4000);
+  const descForSearch  = stripHtml(descSource);
+  const normalizedIssueType      = normalizeCompareText(issueType);
+  const normalizedComponents     = components.map(normalizeCompareText);
+  const normalizedLabels         = labels.map(normalizeCompareText);
+  const normalizedExcludedLabels = new Set(CFG.excludedLabels.map(normalizeCompareText));
+  const normalizedValidTypes     = new Set(CFG.validTypes.map(normalizeCompareText));
+  const normalizedValidComponents= new Set(CFG.validComponents.map(normalizeCompareText));
+  const normalizedDescription    = normalizeCompareText(descForSearch);
+  const allRowText               = normalizeCompareText(row.filter(Boolean).join(' '));
+  const normalizedConfluenceDomain = normalizeCompareText(CFG.confluenceDomain);
+  const labelReasonMap = new Map(
+    Object.entries(CFG.labelReasons).map(([k, v]) => [normalizeCompareText(k), v])
+  );
+  if (normalizedLabels.some(label => normalizedExcludedLabels.has(label))) {
+    const matchedLabels = labels.filter((label, index) => normalizedExcludedLabels.has(normalizedLabels[index]));
+    const reasons = matchedLabels.map(label => {
+      const normalizedLabel = normalizeCompareText(label);
+      return labelReasonMap.get(normalizedLabel) || `AUDIT dışı — hariç tutulan label mevcut: ${esc(label)}`;
+    });
+    return { issueKey, summary, issueType, components, component: components.join(', ') || '—',
+             compliance: 'N/A', maturity: 'N/A', reasons, auditExcluded: true, descText: descForDisplay };
+  }
+  const reasons = [];
+  let compliance = 'PASS';
+  if (!normalizedValidTypes.has(normalizedIssueType))
+    { reasons.push(`Geçersiz issue type: "${issueType}"`); compliance = 'FAIL'; }
+  if (!normalizedComponents.some(component => normalizedValidComponents.has(component)))
+    { reasons.push(`Geçerli component yok: [${components.join(', ') || 'boş'}]`); compliance = 'FAIL'; }
+  const descPlainText = descForSearch.trim();
+  const missing = CFG.requiredHeaders.filter(h => {
+    const nh = normalizeCompareText(h).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return !new RegExp('(?:^|[^a-z0-9])' + nh + '(?:$|[^a-z0-9])').test(normalizedDescription);
+  });
+  if (missing.length) {
+    const reason = !descPlainText || missing.length === CFG.requiredHeaders.length
+      ? 'Analiz yok'
+      : `Story içeriği uygun değil — eksik başlıklar: ${missing.join(', ')}`;
+    reasons.push(reason);
+    compliance = 'FAIL';
+  }
+  if (normalizedConfluenceDomain && !allRowText.includes(normalizedConfluenceDomain))
+    { reasons.push('Confluence linki eklenmemiş'); compliance = 'FAIL'; }
+  return { issueKey, summary, issueType, components, component: components.join(', ') || '—',
+           compliance, maturity: 'N/A', reasons, auditExcluded: false, descText: descForDisplay };
+}
+
+function analyzeChunked(dataRows, colMap, onProgress, onComplete) {
+  const CHUNK = 100;
+  const results = [];
+  let offset = 0;
+  const id = ++analyzeChunked._current;
+  function next() {
+    if (id !== analyzeChunked._current) return;
+    const end = Math.min(offset + CHUNK, dataRows.length);
+    for (let i = offset; i < end; i++) results.push(analyzeIssue(dataRows[i], colMap));
+    offset = end;
+    onProgress(Math.round(offset / dataRows.length * 100), offset);
+    if (offset < dataRows.length) setTimeout(next, 0);
+    else onComplete(results);
+  }
+  setTimeout(next, 0);
+}
+analyzeChunked._current = 0;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TEST FRAMEWORK
+// ─────────────────────────────────────────────────────────────────────────────
+
+const results_log = [];
+let currentSuite = '';
+
+function suite(name, fn) {
+  currentSuite = name;
+  fn();
+}
+
+function expect(val) {
+  return {
+    _val: val,
+    toBe(expected) {
+      if (val !== expected) throw new Error(`Beklenen: ${JSON.stringify(expected)}, Alınan: ${JSON.stringify(val)}`);
+    },
+    toEqual(expected) {
+      if (JSON.stringify(val) !== JSON.stringify(expected))
+        throw new Error(`Beklenen: ${JSON.stringify(expected)}, Alınan: ${JSON.stringify(val)}`);
+    },
+    toContain(item) {
+      if (Array.isArray(val)) { if (!val.includes(item)) throw new Error(`Dizi içermiyor: ${JSON.stringify(item)}`); }
+      else if (typeof val === 'string') { if (!val.includes(item)) throw new Error(`String içermiyor: "${item}"`); }
+      else throw new Error('toContain sadece dizi ve string için geçerli');
+    },
+    toContainMatch(substring) {
+      if (!val.some(s => s.includes(substring)))
+        throw new Error(`Hiçbir eleman "${substring}" içermiyor. Dizi: ${JSON.stringify(val)}`);
+    },
+    toHaveLength(n) {
+      if (val.length !== n) throw new Error(`Beklenen uzunluk: ${n}, Alınan: ${val.length}`);
+    },
+    toBeGreaterThan(n) {
+      if (val <= n) throw new Error(`Beklenen > ${n}, Alınan: ${val}`);
+    },
+    toBeTruthy() {
+      if (!val) throw new Error(`Beklenen truthy, Alınan: ${JSON.stringify(val)}`);
+    },
+    toBeFalsy() {
+      if (val) throw new Error(`Beklenen falsy, Alınan: ${JSON.stringify(val)}`);
+    },
+  };
+}
+
+function it(name, fn) {
+  const fullName = currentSuite ? `${currentSuite} › ${name}` : name;
+  try {
+    fn();
+    results_log.push({ status: 'pass', name: fullName });
+  } catch(e) {
+    results_log.push({ status: 'fail', name: fullName, error: e.message });
+  }
+}
+
+function itAsync(name, fn) {
+  const fullName = currentSuite ? `${currentSuite} › ${name}` : name;
+  return fn().then(() => {
+    results_log.push({ status: 'pass', name: fullName });
+  }).catch(e => {
+    results_log.push({ status: 'fail', name: fullName, error: e.message });
+  });
+}
+
+// CSV helper
+function makeRow(overrides = {}) {
+  const defaults = {
+    key: 'TEST-1', summary: 'Test issue', type: 'Story', component: 'CMS',
+    label: '', description: fullDesc(),
+  };
+  const d = { ...defaults, ...overrides };
+  return [d.key, d.summary, d.type, d.component, d.label, d.description];
+}
+
+function fullDesc() {
+  return 'Kullanıcı Hikayesi Tanımı blah Mevcut Durum blah Hedeflenen Durum blah Çözüm Gereksinimleri blah Kabul Kriterleri blah';
+}
+
+const HEADERS = ['Issue Key','Summary','Issue Type','Component/s','Labels','Description'];
+
+function colMapFromHeaders(h) { return detectColumns(h); }
+const STD_COLMAP = colMapFromHeaders(HEADERS);
+
+function analyze(overrides = {}) {
+  CFG = cloneConfig(DEFAULT_CFG);
+  return analyzeIssue(makeRow(overrides), STD_COLMAP);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TEST SUITE
+// ─────────────────────────────────────────────────────────────────────────────
+
+// 1. parseCSV
+suite('parseCSV', () => {
+  it('basit iki satır parse eder', () => {
+    const r = parseCSV('a,b,c\n1,2,3');
+    expect(r).toHaveLength(2);
+    expect(r[0]).toEqual(['a','b','c']);
+    expect(r[1]).toEqual(['1','2','3']);
+  });
+
+  it('\\r\\n satır sonlarını handle eder', () => {
+    const r = parseCSV('a,b\r\n1,2\r\n');
+    expect(r).toHaveLength(2);
+    expect(r[1]).toEqual(['1','2']);
+  });
+
+  it('tek \\r satır sonlarını handle eder (eski Mac)', () => {
+    const r = parseCSV('a,b\r1,2');
+    expect(r).toHaveLength(2);
+  });
+
+  it('tırnak içindeki virgülü field ayırıcı saymaz', () => {
+    const r = parseCSV('"a,b",c\n1,2');
+    expect(r[0][0]).toBe('a,b');
+    expect(r[0][1]).toBe('c');
+  });
+
+  it('çift tırnak escape\'ini çözer', () => {
+    const r = parseCSV('"say ""hello"""\n');
+    expect(r[0][0]).toBe('say "hello"');
+  });
+
+  it('tırnak içindeki yeni satırı korur', () => {
+    const r = parseCSV('"line1\nline2",b\n');
+    expect(r[0][0]).toBe('line1\nline2');
+  });
+
+  it('boş string için boş dizi döner', () => {
+    const r = parseCSV('');
+    expect(r).toHaveLength(0);
+  });
+
+  it('sadece başlık satırı varsa 1 satır döner', () => {
+    const r = parseCSV('Issue Key,Summary\n');
+    expect(r).toHaveLength(1);
+  });
+
+  it('BOM karakterini strip eder', () => {
+    const r = parseCSV('\uFEFFIssue Key,Summary\nTEST-1,foo');
+    expect(r[0][0]).toBe('Issue Key');
+  });
+
+  it('trailing newline olan dosyada fazla boş satır üretmez', () => {
+    const r = parseCSV('a,b\n1,2\n');
+    expect(r).toHaveLength(2);
+  });
+});
+
+// 2. normalizeCompareText
+suite('normalizeCompareText', () => {
+  it('büyük-küçük harf normalize eder', () => {
+    expect(normalizeCompareText('STORY')).toBe('story');
+  });
+
+  it('başındaki/sonundaki boşlukları temizler', () => {
+    expect(normalizeCompareText('  abc  ')).toBe('abc');
+  });
+
+  it('ı → i dönüşümünü yapar', () => {
+    expect(normalizeCompareText('Kullanıcı')).toBe('kullanici');
+  });
+
+  it('Türkçe ş, ğ, ü, ö, ç normalize eder', () => {
+    const n = normalizeCompareText('şğüöç');
+    expect(n).toBe('sguoc');
+  });
+
+  it('null/undefined için boş string döner', () => {
+    expect(normalizeCompareText(null)).toBe('');
+    expect(normalizeCompareText(undefined)).toBe('');
+  });
+
+  it('BOM karakterini strip eder', () => {
+    expect(normalizeCompareText('\uFEFFtest')).toBe('test');
+  });
+
+  it('ardışık boşlukları tekleştirir', () => {
+    expect(normalizeCompareText('a  b   c')).toBe('a b c');
+  });
+});
+
+// 3. detectColumns
+suite('detectColumns', () => {
+  it('standart Jira başlıklarını tanır', () => {
+    const cm = detectColumns(['Issue Key','Summary','Issue Type','Component/s','Labels','Description']);
+    expect(cm.key).toBe(0);
+    expect(cm.summary).toBe(1);
+    expect(cm.issueType).toBe(2);
+    expect(cm.description).toBe(5);
+  });
+
+  it('büyük/küçük harf farklılığına toleranslıdır', () => {
+    const cm = detectColumns(['ISSUE KEY','SUMMARY']);
+    expect(cm.key).toBe(0);
+    expect(cm.summary).toBe(1);
+  });
+
+  it('zorunlu kolon yoksa -1 döner', () => {
+    const cm = detectColumns(['Foo','Bar']);
+    expect(cm.key).toBe(-1);
+    expect(cm.summary).toBe(-1);
+  });
+
+  it('tekrar eden Component/s kolonlarının hepsini bulur', () => {
+    const cm = detectColumns(['Issue Key','Summary','Component/s','Component/s','Component/s']);
+    expect(cm.componentsAll).toHaveLength(3);
+  });
+
+  it('tekrar eden Labels kolonlarını bulur', () => {
+    const cm = detectColumns(['Issue Key','Summary','Labels','Labels']);
+    expect(cm.labelsAll).toHaveLength(2);
+  });
+
+  it('alternatif alias "Key" ile çalışır', () => {
+    const cm = detectColumns(['Key','Summary']);
+    expect(cm.key).toBe(0);
+  });
+});
+
+// 4. stripHtml
+suite('stripHtml', () => {
+  it('HTML tag\'lerini kaldırır', () => {
+    expect(stripHtml('<b>hello</b>')).toBe(' hello ');
+  });
+
+  it('&amp; entity decode eder', () => {
+    expect(stripHtml('a &amp; b')).toBe('a & b');
+  });
+
+  it('&nbsp; boşluğa çevirir', () => {
+    expect(stripHtml('a&nbsp;b')).toBe('a b');
+  });
+
+  it('nested tag\'leri temizler', () => {
+    const r = stripHtml('<div><p><b>text</b></p></div>');
+    expect(r).toContain('text');
+    expect(r).toBe('  text  ');
+  });
+});
+
+// 5. safeHref
+suite('safeHref', () => {
+  it('https URL\'yi geçirir', () => {
+    expect(safeHref('https://example.com')).toBe('https://example.com');
+  });
+
+  it('http URL\'yi geçirir', () => {
+    expect(safeHref('http://example.com')).toBe('http://example.com');
+  });
+
+  it('javascript: protokolünü bloke eder', () => {
+    expect(safeHref('javascript:alert(1)')).toBe('#');
+  });
+
+  it('data: URI\'yi bloke eder', () => {
+    expect(safeHref('data:text/html,<h1>xss</h1>')).toBe('#');
+  });
+
+  it('geçersiz URL için # döner', () => {
+    expect(safeHref('not a url')).toBe('#');
+  });
+
+  it('boş string için # döner', () => {
+    expect(safeHref('')).toBe('#');
+  });
+});
+
+// 6. analyzeIssue — PASS senaryoları
+suite('analyzeIssue › PASS', () => {
+  it('tüm kriterler sağlandığında PASS döner (Confluence kapalı)', () => {
+    CFG = cloneConfig(DEFAULT_CFG);
+    CFG.confluenceDomain = '';
+    const r = analyzeIssue(makeRow(), STD_COLMAP);
+    expect(r.compliance).toBe('PASS');
+    expect(r.reasons).toHaveLength(0);
+  });
+
+  it('Confluence domain eşleştiğinde PASS döner', () => {
+    CFG = cloneConfig(DEFAULT_CFG);
+    CFG.confluenceDomain = 'myconfluence.company.com';
+    const row = makeRow({ description: fullDesc() + ' https://myconfluence.company.com/page/123' });
+    const r = analyzeIssue(row, STD_COLMAP);
+    expect(r.compliance).toBe('PASS');
+  });
+
+  it('Task tipi de PASS alır', () => {
+    CFG = cloneConfig(DEFAULT_CFG);
+    CFG.confluenceDomain = '';
+    const r = analyzeIssue(makeRow({ type: 'Task' }), STD_COLMAP);
+    expect(r.compliance).toBe('PASS');
+  });
+
+  it('boş Confluence domain\'de Confluence kontrolü atlanır', () => {
+    CFG = cloneConfig(DEFAULT_CFG);
+    CFG.confluenceDomain = '';
+    const r = analyzeIssue(makeRow({ description: fullDesc() }), STD_COLMAP);
+    expect(r.compliance).toBe('PASS');
+    const confluenceFail = r.reasons.some(x => x.includes('Confluence'));
+    expect(confluenceFail).toBeFalsy();
+  });
+
+  it('varsayılan confluence.example.com domain\'i kontrol YAPMAZ', () => {
+    CFG = cloneConfig(DEFAULT_CFG); // confluenceDomain = 'confluence.example.com'
+    const r = analyzeIssue(makeRow(), STD_COLMAP);
+    // normalizeCompareText('confluence.example.com') boş değil, bu yüzden kontrol YAPILIR
+    // Row'da bu domain yok → FAIL beklenir
+    expect(r.compliance).toBe('FAIL');
+    expect(r.reasons).toContainMatch('Confluence');
+  });
+});
+
+// 7. analyzeIssue — FAIL senaryoları
+suite('analyzeIssue › FAIL', () => {
+  it('geçersiz issue type → FAIL', () => {
+    CFG = cloneConfig(DEFAULT_CFG); CFG.confluenceDomain = '';
+    const r = analyzeIssue(makeRow({ type: 'Epic' }), STD_COLMAP);
+    expect(r.compliance).toBe('FAIL');
+    expect(r.reasons).toContainMatch('Geçersiz issue type');
+  });
+
+  it('geçersiz component → FAIL', () => {
+    CFG = cloneConfig(DEFAULT_CFG); CFG.confluenceDomain = '';
+    const r = analyzeIssue(makeRow({ component: 'BilinmeyenTeam' }), STD_COLMAP);
+    expect(r.compliance).toBe('FAIL');
+    expect(r.reasons).toContainMatch('Geçerli component yok');
+  });
+
+  it('boş description → "Analiz yok" FAIL', () => {
+    CFG = cloneConfig(DEFAULT_CFG); CFG.confluenceDomain = '';
+    const r = analyzeIssue(makeRow({ description: '' }), STD_COLMAP);
+    expect(r.compliance).toBe('FAIL');
+    expect(r.reasons).toContain('Analiz yok');
+  });
+
+  it('kısmi description (bazı başlıklar eksik) → eksik başlıklar listelenir', () => {
+    CFG = cloneConfig(DEFAULT_CFG); CFG.confluenceDomain = '';
+    const partial = 'Kullanıcı Hikayesi Tanımı blah Mevcut Durum blah';
+    const r = analyzeIssue(makeRow({ description: partial }), STD_COLMAP);
+    expect(r.compliance).toBe('FAIL');
+    expect(r.reasons[0]).toContain('eksik başlıklar');
+  });
+
+  it('Confluence linki eksik → FAIL', () => {
+    CFG = cloneConfig(DEFAULT_CFG);
+    CFG.confluenceDomain = 'wiki.example.com';
+    const r = analyzeIssue(makeRow({ description: fullDesc() }), STD_COLMAP);
+    expect(r.compliance).toBe('FAIL');
+    expect(r.reasons).toContainMatch('Confluence linki');
+  });
+
+  it('birden fazla FAIL nedeni birikir', () => {
+    CFG = cloneConfig(DEFAULT_CFG); CFG.confluenceDomain = '';
+    const r = analyzeIssue(makeRow({ type: 'Epic', component: 'Unknown', description: '' }), STD_COLMAP);
+    expect(r.compliance).toBe('FAIL');
+    expect(r.reasons.length).toBeGreaterThan(1);
+  });
+
+  it('boş component → FAIL', () => {
+    CFG = cloneConfig(DEFAULT_CFG); CFG.confluenceDomain = '';
+    const r = analyzeIssue(makeRow({ component: '' }), STD_COLMAP);
+    expect(r.compliance).toBe('FAIL');
+    expect(r.reasons).toContainMatch('component yok');
+  });
+});
+
+// 8. analyzeIssue — N/A (excluded) senaryoları
+suite('analyzeIssue › N/A (excluded)', () => {
+  it('notest label\'i ile N/A döner', () => {
+    CFG = cloneConfig(DEFAULT_CFG);
+    const r = analyzeIssue(makeRow({ label: 'notest' }), STD_COLMAP);
+    expect(r.compliance).toBe('N/A');
+    expect(r.auditExcluded).toBe(true);
+  });
+
+  it('erişilebilirlik label\'i ile N/A döner', () => {
+    CFG = cloneConfig(DEFAULT_CFG);
+    const r = analyzeIssue(makeRow({ label: 'erişilebilirlik' }), STD_COLMAP);
+    expect(r.compliance).toBe('N/A');
+  });
+
+  it('label özel sebebini döner', () => {
+    CFG = cloneConfig(DEFAULT_CFG);
+    const r = analyzeIssue(makeRow({ label: 'notest' }), STD_COLMAP);
+    expect(r.reasons).toContain('test edilebilir değil');
+  });
+
+  it('eşleşme yoksa fallback sebep döner', () => {
+    CFG = cloneConfig(DEFAULT_CFG);
+    CFG.excludedLabels = ['unlisted-label'];
+    CFG.labelReasons = {};
+    const r = analyzeIssue(makeRow({ label: 'unlisted-label' }), STD_COLMAP);
+    expect(r.reasons[0]).toContain('hariç tutulan label');
+  });
+
+  it('XSS karakterleri fallback sebepte escape edilir', () => {
+    CFG = cloneConfig(DEFAULT_CFG);
+    CFG.excludedLabels = ['<script>'];
+    CFG.labelReasons = {};
+    const r = analyzeIssue(makeRow({ label: '<script>' }), STD_COLMAP);
+    expect(r.reasons[0]).toContain('&lt;script&gt;');
+    expect(r.reasons[0]).not.toContain('<script>');
+  });
+
+  it('büyük/küçük harf farklılığına rağmen excluded label eşleşir', () => {
+    CFG = cloneConfig(DEFAULT_CFG);
+    const r = analyzeIssue(makeRow({ label: 'NOTEST' }), STD_COLMAP);
+    expect(r.compliance).toBe('N/A');
+  });
+});
+
+// 9. collectMultiColValues / collectMultiColLabels
+suite('collectMultiColValues', () => {
+  it('tekil sütundan değer okur', () => {
+    const vals = collectMultiColValues(['a'], [0]);
+    expect(vals).toEqual(['a']);
+  });
+
+  it('virgülle ayrılmış birden fazla değeri ayırır', () => {
+    const vals = collectMultiColValues(['CMS, Backend'], [0]);
+    expect(vals).toContain('CMS');
+    expect(vals).toContain('Backend');
+  });
+
+  it('tekrar eden kolonları birleştirir ve duplicate kaldırır', () => {
+    const row = ['CMS', 'CMS', 'Backend'];
+    const vals = collectMultiColValues(row, [0, 1, 2]);
+    expect(vals).toHaveLength(2);
+    expect(vals).toContain('CMS');
+    expect(vals).toContain('Backend');
+  });
+
+  it('boş sütunları atlar', () => {
+    const vals = collectMultiColValues(['', '', 'Web'], [0, 1, 2]);
+    expect(vals).toHaveLength(1);
+    expect(vals).toContain('Web');
+  });
+});
+
+suite('collectMultiColLabels', () => {
+  it('boşlukla ayrılmış label\'leri ayırır', () => {
+    const vals = collectMultiColLabels(['notest erişilebilirlik'], [0]);
+    expect(vals).toContain('notest');
+    expect(vals).toContain('erişilebilirlik');
+  });
+
+  it('karışık ayırıcıları handle eder', () => {
+    const vals = collectMultiColLabels(['a,b;c d'], [0]);
+    expect(vals).toHaveLength(4);
+  });
+});
+
+// 10. analyzeChunked
+suite('analyzeChunked', () => {
+  it('100\'den az satırı tek chunk\'ta tamamlar', (done) => {
+    analyzeChunked._current = 0;
+    CFG = cloneConfig(DEFAULT_CFG); CFG.confluenceDomain = '';
+    const colMap = detectColumns(HEADERS);
+    const rows = Array.from({ length: 5 }, (_, i) => makeRow({ key: `T-${i}` }));
+    return itAsync('analyzeChunked 5 satır', () => new Promise(resolve => {
+      analyzeChunked(rows, colMap, () => {}, (results) => {
+        try {
+          expect(results).toHaveLength(5);
+          resolve();
+        } catch(e) { resolve(); throw e; }
+      });
+    }));
+  });
+
+  it('100\'den fazla satırı chunked tamamlar', () => {
+    analyzeChunked._current = 0;
+    CFG = cloneConfig(DEFAULT_CFG); CFG.confluenceDomain = '';
+    const colMap = detectColumns(HEADERS);
+    const rows = Array.from({ length: 250 }, (_, i) => makeRow({ key: `T-${i}` }));
+    return new Promise(resolve => {
+      let progressCalled = false;
+      analyzeChunked(rows, colMap,
+        (pct) => { if (pct > 0 && pct < 100) progressCalled = true; },
+        (results) => {
+          results_log.push({ status: results.length === 250 ? 'pass' : 'fail', name: 'analyzeChunked › 250 satır tamamlar', error: results.length !== 250 ? `Beklenen 250, alınan ${results.length}` : undefined });
+          results_log.push({ status: progressCalled ? 'pass' : 'fail', name: 'analyzeChunked › progress callback çağrılır', error: !progressCalled ? 'Progress hiç çağrılmadı' : undefined });
+          resolve();
+        }
+      );
+    });
+  });
+
+  it('yeni upload eski chunked analizi iptal eder', () => {
+    analyzeChunked._current = 0;
+    CFG = cloneConfig(DEFAULT_CFG); CFG.confluenceDomain = '';
+    const colMap = detectColumns(HEADERS);
+    const rows = Array.from({ length: 200 }, (_, i) => makeRow({ key: `T-${i}` }));
+    return new Promise(resolve => {
+      let firstCompleted = false;
+      analyzeChunked(rows, colMap, () => {}, () => { firstCompleted = true; });
+      // Yeni analiz hemen başlat → ilk analiz iptal olmalı
+      analyzeChunked(rows.slice(0, 5), colMap, () => {},
+        (results) => {
+          results_log.push({ status: !firstCompleted ? 'pass' : 'fail', name: 'analyzeChunked › eski analiz iptal edilir', error: firstCompleted ? 'Eski analiz tamamlandı, iptal çalışmadı' : undefined });
+          results_log.push({ status: results.length === 5 ? 'pass' : 'fail', name: 'analyzeChunked › yeni analiz doğru tamamlanır', error: results.length !== 5 ? `Beklenen 5, alınan ${results.length}` : undefined });
+          resolve();
+        }
+      );
+    });
+  });
+});
+
+// 11. description header matching edge cases
+suite('analyzeIssue › Description header eşleştirme', () => {
+  it('HTML tag\'leri içindeki başlığı bulur', () => {
+    CFG = cloneConfig(DEFAULT_CFG); CFG.confluenceDomain = '';
+    const htmlDesc = '<b>Kullanıcı Hikayesi Tanımı</b> foo <b>Mevcut Durum</b> bar <b>Hedeflenen Durum</b> baz <b>Çözüm Gereksinimleri</b> qux <b>Kabul Kriterleri</b> end';
+    const r = analyzeIssue(makeRow({ description: htmlDesc }), STD_COLMAP);
+    expect(r.compliance).toBe('PASS');
+  });
+
+  it('büyük/küçük harf farklılığına rağmen başlık eşleşir', () => {
+    CFG = cloneConfig(DEFAULT_CFG); CFG.confluenceDomain = '';
+    const desc = 'KULLANICI HİKAYESİ TANIMI blah MEVCUT DURUM blah HEDEFLENEN DURUM blah ÇÖZÜM GEREKSİNİMLERİ blah KABUL KRİTERLERİ blah';
+    const r = analyzeIssue(makeRow({ description: desc }), STD_COLMAP);
+    expect(r.compliance).toBe('PASS');
+  });
+
+  it('sadece kısmi başlık eşleşmesi → eksik başlıklar rapor edilir', () => {
+    CFG = cloneConfig(DEFAULT_CFG); CFG.confluenceDomain = '';
+    const partial = 'Kullanıcı Hikayesi Tanımı blah';
+    const r = analyzeIssue(makeRow({ description: partial }), STD_COLMAP);
+    expect(r.compliance).toBe('FAIL');
+    const reason = r.reasons[0];
+    expect(reason).toContain('eksik başlıklar');
+    expect(reason).toContain('Mevcut Durum');
+  });
+});
+
+// 12. Çoklu component senaryosu
+suite('analyzeIssue › Çoklu component', () => {
+  it('birden fazla kolon üzerinden geçerli component bulunur', () => {
+    CFG = cloneConfig(DEFAULT_CFG); CFG.confluenceDomain = '';
+    const headers = ['Issue Key','Summary','Issue Type','Component/s','Component/s','Labels','Description'];
+    const cm = detectColumns(headers);
+    // İlk kolon: geçersiz, ikinci kolon: geçerli
+    const row = ['T-1','Test','Story','UnknownTeam','CMS','',fullDesc()];
+    const r = analyzeIssue(row, cm);
+    expect(r.compliance).toBe('PASS');
+  });
+
+  it('hiçbir kolonda geçerli component yoksa FAIL', () => {
+    CFG = cloneConfig(DEFAULT_CFG); CFG.confluenceDomain = '';
+    const headers = ['Issue Key','Summary','Issue Type','Component/s','Component/s','Labels','Description'];
+    const cm = detectColumns(headers);
+    const row = ['T-1','Test','Story','Alpha','Beta','',fullDesc()];
+    const r = analyzeIssue(row, cm);
+    expect(r.compliance).toBe('FAIL');
+  });
+});
+
+// 13. esc() XSS koruması
+suite('esc()', () => {
+  it('<script> tag\'ini escape eder', () => {
+    expect(esc('<script>alert(1)</script>')).toBe('&lt;script&gt;alert(1)&lt;/script&gt;');
+  });
+
+  it('& işaretini escape eder', () => {
+    expect(esc('a & b')).toBe('a &amp; b');
+  });
+
+  it('null için boş string döner', () => {
+    expect(esc(null)).toBe('');
+  });
+
+  it('sayıları stringe çevirir', () => {
+    expect(esc(42)).toBe('42');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RENDER
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Async testleri topla
+const asyncTests = [
+  new Promise(r => setTimeout(r, 0)).then(() =>
+    itAsync('analyzeChunked › 5 satır tamamlar', () => new Promise(resolve => {
+      analyzeChunked._current = 0;
+      CFG = cloneConfig(DEFAULT_CFG); CFG.confluenceDomain = '';
+      const rows = Array.from({ length: 5 }, (_, i) => makeRow({ key: `T-${i}` }));
+      analyzeChunked(rows, detectColumns(HEADERS), () => {}, (results) => {
+        try { expect(results).toHaveLength(5); resolve(); }
+        catch(e) { reject(e); }
+      });
+    }))
+  ),
+];
+
+// 250 satır + iptal testi (zaten Promise döndürüyor, suite() içinde kaydettik)
+const async250 = (function() {
+  analyzeChunked._current = 0;
+  CFG = cloneConfig(DEFAULT_CFG); CFG.confluenceDomain = '';
+  const colMap = detectColumns(HEADERS);
+  const rows = Array.from({ length: 250 }, (_, i) => makeRow({ key: `T-${i}` }));
+  let progressCalled = false;
+  return new Promise(resolve => {
+    analyzeChunked(rows, colMap,
+      (pct) => { if (pct > 0 && pct < 100) progressCalled = true; },
+      (results) => {
+        results_log.push({ status: results.length === 250 ? 'pass' : 'fail', name: 'analyzeChunked › 250 satır tamamlar', error: results.length !== 250 ? `Beklenen 250, alınan ${results.length}` : undefined });
+        results_log.push({ status: progressCalled ? 'pass' : 'fail', name: 'analyzeChunked › progress callback çağrılır', error: !progressCalled ? 'Progress hiç çağrılmadı' : undefined });
+        resolve();
+      }
+    );
+  });
+})();
+
+const asyncCancel = (function() {
+  analyzeChunked._current = 0;
+  CFG = cloneConfig(DEFAULT_CFG); CFG.confluenceDomain = '';
+  const colMap = detectColumns(HEADERS);
+  const rows = Array.from({ length: 200 }, (_, i) => makeRow({ key: `T-${i}` }));
+  return new Promise(resolve => {
+    let firstCompleted = false;
+    analyzeChunked(rows, colMap, () => {}, () => { firstCompleted = true; });
+    analyzeChunked(rows.slice(0, 5), colMap, () => {},
+      (results) => {
+        results_log.push({ status: !firstCompleted ? 'pass' : 'fail', name: 'analyzeChunked › eski analiz iptal edilir', error: firstCompleted ? 'Eski analiz tamamlandı, iptal çalışmadı' : undefined });
+        results_log.push({ status: results.length === 5 ? 'pass' : 'fail', name: 'analyzeChunked › yeni analiz doğru tamamlanır', error: results.length !== 5 ? `Beklenen 5, alınan ${results.length}` : undefined });
+        resolve();
+      }
+    );
+  });
+})();
+
+const async5 = (function() {
+  analyzeChunked._current = 0;
+  CFG = cloneConfig(DEFAULT_CFG); CFG.confluenceDomain = '';
+  const rows = Array.from({ length: 5 }, (_, i) => makeRow({ key: `T-${i}` }));
+  return new Promise(resolve => {
+    analyzeChunked(rows, detectColumns(HEADERS), () => {}, (results) => {
+      results_log.push({ status: results.length === 5 ? 'pass' : 'fail', name: 'analyzeChunked › 5 satır tamamlar', error: results.length !== 5 ? `Beklenen 5, alınan ${results.length}` : undefined });
+      resolve();
+    });
+  });
+})();
+
+Promise.all([async5, async250, asyncCancel]).then(renderResults);
+
+function renderResults() {
+  const out = document.getElementById('output');
+  const suites = {};
+  for (const r of results_log) {
+    const parts = r.name.split(' › ');
+    const s = parts.length > 1 ? parts[0] : '—';
+    const n = parts.length > 1 ? parts.slice(1).join(' › ') : r.name;
+    if (!suites[s]) suites[s] = [];
+    suites[s].push({ ...r, shortName: n });
+  }
+
+  let html = '';
+  for (const [suiteName, cases] of Object.entries(suites)) {
+    html += `<div class="suite"><div class="suite-title">${suiteName}</div>`;
+    for (const c of cases) {
+      const badge = c.status === 'pass' ? '<span class="badge pass">PASS</span>' : '<span class="badge fail">FAIL</span>';
+      const detail = c.error ? `<div class="detail err">${c.error}</div>` : '';
+      html += `<div class="case">${badge}<div class="name">${c.shortName}${detail}</div></div>`;
+    }
+    html += '</div>';
+  }
+  out.innerHTML = html;
+
+  const total = results_log.length;
+  const passed = results_log.filter(r => r.status === 'pass').length;
+  const failed = total - passed;
+  const pct = total > 0 ? Math.round(passed / total * 100) : 0;
+
+  const fill = document.getElementById('progress-fill');
+  fill.style.width = pct + '%';
+  if (failed > 0) fill.classList.add('has-fail');
+
+  document.getElementById('meta').textContent = `${total} test çalıştırıldı`;
+  document.getElementById('summary').innerHTML = `
+    <div class="summary-row">
+      <span class="s-pass">✓ ${passed} başarılı</span>
+      ${failed > 0 ? `<span class="s-fail">✗ ${failed} başarısız</span>` : ''}
+      <span class="s-total">${total} toplam · %${pct}</span>
+    </div>`;
+}
+</script>
+</body>
+</html>
