@@ -546,7 +546,6 @@ let allResults = [];
 let filteredResults = [];
 let sortState = { col: null, dir: 1 };
 let analysisReady = false;
-let analysisInProgress = false;
 let configChangedAfterAnalysis = false;
 let lastAnalysisFilename = '';
 let latestAnalysisMeta = null;
@@ -873,21 +872,19 @@ function analyzeChunked(dataRows, colMap, onProgress, onComplete) {
   const CHUNK = 100;
   const results = [];
   let offset = 0;
-  let cancelled = false;
-  const token = ++analyzeChunked._token;
+  const id = ++analyzeChunked._current;
   function next() {
-    if (cancelled || token !== analyzeChunked._token) return;
+    if (id !== analyzeChunked._current) return; // yeni upload başladıysa dur
     const end = Math.min(offset + CHUNK, dataRows.length);
     for (let i = offset; i < end; i++) results.push(analyzeIssue(dataRows[i], colMap));
     offset = end;
     onProgress(Math.round(offset / dataRows.length * 100), offset);
     if (offset < dataRows.length) setTimeout(next, 0);
-    else { analysisInProgress = false; onComplete(results); }
+    else onComplete(results);
   }
-  analysisInProgress = true;
   setTimeout(next, 0);
 }
-analyzeChunked._token = 0;
+analyzeChunked._current = 0;
 
 function resetAnalysisState() {
   allResults = [];
